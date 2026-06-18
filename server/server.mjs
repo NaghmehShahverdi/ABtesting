@@ -2,6 +2,7 @@ import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
+import { readFileSync } from 'node:fs'
 import {
   getCausalInferenceDashboard,
   getMlScoringDashboard,
@@ -10,6 +11,14 @@ import {
 
 const app = express()
 const port = Number(process.env.PORT || 3000)
+const mlCacheRefreshMs = Number(process.env.ML_CACHE_REFRESH_MS || 86_400_000)
+const bundledMlSnapshot = JSON.parse(
+  readFileSync(new URL('./ml-scoring.snapshot.json', import.meta.url), 'utf8'),
+)
+let mlScoringCache = bundledMlSnapshot
+let mlCacheSource = 'bundled-snapshot'
+let mlCacheLastAttemptAt = 0
+let mlCacheRefreshPromise = null
 const allowedOrigins = new Set(
   (process.env.FRONTEND_ORIGINS || 'https://naghmehshahverdi.github.io,http://localhost:5173')
     .split(',')
@@ -48,8 +57,13 @@ app.get('/api/product-usage', async (_request, response) => {
   await sendDashboard(response, getProductUsageDashboard, 'product usage analytics')
 })
 
-app.get('/api/ml-scoring', async (_request, response) => {
-  await sendDashboard(response, getMlScoringDashboard, 'account scoring results')
+app.get('/api/ml-scoring', (_request, response) => {
+  response.set({
+    'Cache-Control': 'public, max-age=300, s-maxage=86400, stale-while-revalidate=604800',
+    'X-Data-Source': mlCacheSource,
+  })
+  response.json(mlScoringCache)
+  void refreshMlScoringCache()
 })
 
 app.get('/api/causal-inference', async (_request, response) => {
@@ -148,6 +162,29 @@ async function sendDashboard(response, loader, label) {
       details: error instanceof Error ? error.message : 'Unknown server error',
     })
   }
+}
+
+function refreshMlScoringCache() {
+  const cacheIsFresh = Date.now() - mlCacheLastAttemptAt < mlCacheRefreshMs
+  if (cacheIsFresh || mlCacheRefreshPromise) {
+    return mlCacheRefreshPromise
+  }
+
+  mlCacheLastAttemptAt = Date.now()
+  mlCacheRefreshPromise = getMlScoringDashboard()
+    .then((dashboard) => {
+      mlScoringCache = dashboard
+      mlCacheSource = 'snowflake-memory-cache'
+      console.log('Account scoring cache refreshed from Snowflake.')
+    })
+    .catch((error) => {
+      console.error('Unable to refresh account scoring cache; serving bundled snapshot:', error)
+    })
+    .finally(() => {
+      mlCacheRefreshPromise = null
+    })
+
+  return mlCacheRefreshPromise
 }
 
 const ACCOUNT_COPILOT_INSTRUCTIONS = `
