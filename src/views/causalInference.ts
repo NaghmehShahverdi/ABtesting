@@ -57,9 +57,16 @@ type HeterogeneousEffectRow = {
   segment_type: string
   segment_value: string
   accounts: number
+  support_accounts: number
+  support_rate: number
+  support_treated: number
+  support_control: number
   treated_rate: number
   outcome_rate: number
   avg_cate: number
+  standard_error: number
+  ci_lower_95: number
+  ci_upper_95: number
 }
 
 type InterventionCandidateRow = {
@@ -473,13 +480,23 @@ function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard): stri
           <p class="eyebrow">Exploratory Segments</p>
           <h2>Signals to stratify in the experiment</h2>
         </div>
-        <span>Conditional average treatment effects (CATE)</span>
+        <span>Common-support subgroup AIPW estimates</span>
       </div>
 
       <p class="ml-section-lead">
-        These are model-generated heterogeneity signals without segment-level confidence intervals or
-        multiple-comparison correction. Use them to pre-specify experimental strata—not to launch segmented rollouts.
+        Each estimate now includes a 95% confidence interval and uses only comparable treated/control accounts.
+        These are still exploratory: many segments were examined and no multiple-comparison correction has been applied.
+        Use stable business segments to pre-specify experiment strata—not to launch segmented rollouts.
       </p>
+
+      <div class="ci-segment-warning">
+        <strong>How to read this table</strong>
+        <p>
+          An interval crossing zero means the data do not establish whether the segment effect is positive or negative.
+          An interval excluding zero is a hypothesis worth retesting, not confirmation, because repeated segment searches
+          increase the chance of false discoveries.
+        </p>
+      </div>
 
       <div class="table-card ml-table-scroll">
         <table class="ml-metrics-table ci-hte-table">
@@ -488,10 +505,11 @@ function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard): stri
               <th>Treatment</th>
               <th>Segment type</th>
               <th>Segment</th>
-              <th>Accounts</th>
-              <th>Avg CATE</th>
-              <th>Treated rate</th>
-              <th>Outcome rate</th>
+              <th>Comparable n</th>
+              <th>Treated / control</th>
+              <th>Subgroup AIPW</th>
+              <th>95% CI</th>
+              <th>Evidence</th>
             </tr>
           </thead>
           <tbody>
@@ -502,10 +520,14 @@ function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard): stri
                 <td>${treatmentLabel(row.treatment)}</td>
                 <td>${formatSegmentType(row.segment_type)}</td>
                 <td><strong>${row.segment_value}</strong></td>
-                <td>${formatInteger(row.accounts)}</td>
+                <td>
+                  ${formatInteger(row.support_accounts)}
+                  <span class="ml-priority-meta">${formatPercent(row.support_rate, 0)} of ${formatInteger(row.accounts)}</span>
+                </td>
+                <td>${formatInteger(row.support_treated)} / ${formatInteger(row.support_control)}</td>
                 <td><strong>${formatSignedPp(row.avg_cate)}</strong></td>
-                <td>${formatPercent(row.treated_rate, 1)}</td>
-                <td>${formatPercent(row.outcome_rate, 1)}</td>
+                <td>${formatSignedPp(row.ci_lower_95)} to ${formatSignedPp(row.ci_upper_95)}</td>
+                <td>${segmentEvidenceBadge(row)}</td>
               </tr>
             `,
               )
@@ -683,6 +705,16 @@ function evidenceBadge(row: CausalEffectRow): string {
     return '<span class="ci-evidence ci-evidence-negative">Negative signal</span>'
   }
   return '<span class="ci-evidence ci-evidence-mixed">Inconclusive</span>'
+}
+
+function segmentEvidenceBadge(row: HeterogeneousEffectRow): string {
+  if (row.ci_lower_95 <= 0 && row.ci_upper_95 >= 0) {
+    return '<span class="ci-evidence ci-evidence-mixed">Inconclusive</span>'
+  }
+  if (row.ci_lower_95 > 0) {
+    return '<span class="ci-evidence ci-evidence-exploratory">Retest positive signal</span>'
+  }
+  return '<span class="ci-evidence ci-evidence-negative">Retest negative signal</span>'
 }
 
 function formatStoredInterval(value: string): string {
