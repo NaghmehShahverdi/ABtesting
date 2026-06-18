@@ -9,141 +9,6 @@ snowflake.configure({
   logLevel: 'error',
 })
 
-const productUsageQueries = {
-  overview: `
-    WITH user_rollup AS (
-      SELECT
-        u.USER_ID,
-        u.FIRST_LOGGED_IN_AT,
-        u.LATEST_LOGGED_IN_AT,
-        u.IS_MARKETING_OPTED_IN,
-        COUNT(t.EVENT_ID) AS EVENTS,
-        COUNT(DISTINCT t.EVENT_NAME) AS DISTINCT_EVENTS,
-        MAX(IFF(
-          t.EVENT_NAME = 'workspace_created'
-          AND t.EVENT_TIMESTAMP BETWEEN u.FIRST_LOGGED_IN_AT AND DATEADD(day, 7, u.FIRST_LOGGED_IN_AT),
-          1,
-          0
-        )) AS CREATED_WORKSPACE,
-        MAX(IFF(
-          t.EVENT_NAME = 'report_generated'
-          AND t.EVENT_TIMESTAMP BETWEEN u.FIRST_LOGGED_IN_AT AND DATEADD(day, 7, u.FIRST_LOGGED_IN_AT),
-          1,
-          0
-        )) AS GENERATED_REPORT
-      FROM EXPERIMENT_COPILOT.PUBLIC.USERS_RAW u
-      LEFT JOIN EXPERIMENT_COPILOT.PUBLIC.TRACKS_RAW t
-        ON u.USER_ID = t.USER_ID
-      GROUP BY
-        u.USER_ID,
-        u.FIRST_LOGGED_IN_AT,
-        u.LATEST_LOGGED_IN_AT,
-        u.IS_MARKETING_OPTED_IN
-    )
-    SELECT
-      COUNT(*) AS TOTAL_USERS,
-      COUNT_IF(EVENTS > 0) AS ACTIVE_USERS,
-      SUM(EVENTS) AS TOTAL_EVENTS,
-      ROUND(AVG(EVENTS), 2) AS AVG_EVENTS_PER_USER,
-      ROUND(AVG(IFF(EVENTS > 0, EVENTS, NULL)), 2) AS AVG_EVENTS_PER_ACTIVE_USER,
-      ROUND(AVG(DISTINCT_EVENTS), 2) AS AVG_DISTINCT_EVENTS,
-      COUNT_IF(CREATED_WORKSPACE = 1 AND GENERATED_REPORT = 1) AS ACTIVATED_USERS,
-      ROUND(COUNT_IF(CREATED_WORKSPACE = 1 AND GENERATED_REPORT = 1) / NULLIF(COUNT(*), 0), 4) AS ACTIVATION_RATE,
-      COUNT_IF(IS_MARKETING_OPTED_IN = 1) AS MARKETING_OPTED_USERS,
-      ROUND(COUNT_IF(IS_MARKETING_OPTED_IN = 1) / NULLIF(COUNT(*), 0), 4) AS MARKETING_OPT_IN_RATE,
-      MIN(FIRST_LOGGED_IN_AT) AS FIRST_LOGIN_AT,
-      MAX(LATEST_LOGGED_IN_AT) AS LATEST_LOGIN_AT
-    FROM user_rollup
-  `,
-  topEvents: `
-    SELECT
-      EVENT_NAME,
-      COUNT(*) AS TOTAL_EVENTS,
-      COUNT(DISTINCT USER_ID) AS UNIQUE_USERS,
-      MIN(EVENT_TIMESTAMP) AS FIRST_SEEN_AT,
-      MAX(EVENT_TIMESTAMP) AS LAST_SEEN_AT
-    FROM EXPERIMENT_COPILOT.PUBLIC.TRACKS_RAW
-    GROUP BY EVENT_NAME
-    ORDER BY TOTAL_EVENTS DESC
-    LIMIT 12
-  `,
-  monthlyActivity: `
-    SELECT
-      DATE_TRUNC('month', EVENT_TIMESTAMP)::DATE AS EVENT_MONTH,
-      COUNT(*) AS TOTAL_EVENTS,
-      COUNT(DISTINCT USER_ID) AS ACTIVE_USERS
-    FROM EXPERIMENT_COPILOT.PUBLIC.TRACKS_RAW
-    GROUP BY EVENT_MONTH
-    ORDER BY EVENT_MONTH
-  `,
-  activationFunnel: `
-    WITH user_flags AS (
-      SELECT
-        u.USER_ID,
-        IFF(u.FIRST_LOGGED_IN_AT IS NOT NULL, 1, 0) AS HAS_FIRST_LOGIN,
-        MAX(IFF(
-          t.EVENT_NAME = 'workspace_created'
-          AND t.EVENT_TIMESTAMP BETWEEN u.FIRST_LOGGED_IN_AT AND DATEADD(day, 7, u.FIRST_LOGGED_IN_AT),
-          1,
-          0
-        )) AS CREATED_WORKSPACE,
-        MAX(IFF(
-          t.EVENT_NAME = 'report_generated'
-          AND t.EVENT_TIMESTAMP BETWEEN u.FIRST_LOGGED_IN_AT AND DATEADD(day, 7, u.FIRST_LOGGED_IN_AT),
-          1,
-          0
-        )) AS GENERATED_REPORT
-      FROM EXPERIMENT_COPILOT.PUBLIC.USERS_RAW u
-      LEFT JOIN EXPERIMENT_COPILOT.PUBLIC.TRACKS_RAW t
-        ON u.USER_ID = t.USER_ID
-      GROUP BY u.USER_ID, u.FIRST_LOGGED_IN_AT
-    )
-    SELECT 1 AS STAGE_ORDER, 'Users' AS STAGE, COUNT(*) AS USERS FROM user_flags
-    UNION ALL
-    SELECT 2, 'First login', COUNT_IF(HAS_FIRST_LOGIN = 1) FROM user_flags
-    UNION ALL
-    SELECT 3, 'Workspace created', COUNT_IF(CREATED_WORKSPACE = 1) FROM user_flags
-    UNION ALL
-    SELECT 4, 'Report generated', COUNT_IF(GENERATED_REPORT = 1) FROM user_flags
-    UNION ALL
-    SELECT 5, 'Activated', COUNT_IF(CREATED_WORKSPACE = 1 AND GENERATED_REPORT = 1) FROM user_flags
-    ORDER BY STAGE_ORDER
-  `,
-  jobSegments: `
-    SELECT
-      COALESCE(u.JOB_TITLE, 'Unknown') AS JOB_TITLE,
-      COUNT(DISTINCT u.USER_ID) AS USERS,
-      COUNT(DISTINCT t.USER_ID) AS ACTIVE_USERS,
-      COUNT(t.EVENT_ID) AS TOTAL_EVENTS,
-      ROUND(COUNT(t.EVENT_ID) / NULLIF(COUNT(DISTINCT u.USER_ID), 0), 2) AS EVENTS_PER_USER
-    FROM EXPERIMENT_COPILOT.PUBLIC.USERS_RAW u
-    LEFT JOIN EXPERIMENT_COPILOT.PUBLIC.TRACKS_RAW t
-      ON u.USER_ID = t.USER_ID
-    GROUP BY JOB_TITLE
-    ORDER BY ACTIVE_USERS DESC, TOTAL_EVENTS DESC
-    LIMIT 10
-  `,
-  recentEvents: `
-    SELECT
-      EVENT_NAME,
-      USER_ID,
-      EVENT_TIMESTAMP
-    FROM EXPERIMENT_COPILOT.PUBLIC.TRACKS_RAW
-    ORDER BY EVENT_TIMESTAMP DESC
-    LIMIT 12
-  `,
-  productPurchases: `
-    SELECT
-      PRODUCT_NAME,
-      COUNT(*) AS PURCHASES,
-      COUNT(DISTINCT CUSTOMER_ID) AS CUSTOMERS
-    FROM EXPERIMENT_COPILOT.PUBLIC.PRODUCT_PURCHASES_RAW
-    GROUP BY PRODUCT_NAME
-    ORDER BY PURCHASES DESC
-    LIMIT 8
-  `,
-}
-
 const mlModelMetricsColumns = `
   MODEL_NAME,
   MODEL_LABEL,
@@ -273,24 +138,6 @@ export default defineConfig({
     {
       name: 'snowflake-api',
       configureServer(server) {
-        server.middlewares.use('/api/product-usage', async (_request, response) => {
-          try {
-            const dashboard = await getProductUsageDashboard()
-
-            response.setHeader('Content-Type', 'application/json')
-            response.end(JSON.stringify(dashboard))
-          } catch (error) {
-            response.statusCode = 500
-            response.setHeader('Content-Type', 'application/json')
-            response.end(
-              JSON.stringify({
-                error: 'Unable to load product usage analytics from Snowflake.',
-                details: getErrorMessage(error),
-              }),
-            )
-          }
-        })
-
         server.middlewares.use('/api/ml-scoring', async (_request, response) => {
           try {
             const dashboard = await getMlScoringDashboard()
@@ -330,63 +177,6 @@ export default defineConfig({
     },
   ],
 })
-
-export async function getProductUsageDashboard() {
-  const [
-    overviewRows,
-    topEventsRows,
-    monthlyActivityRows,
-    activationFunnelRows,
-    jobSegmentsRows,
-    recentEventsRows,
-    productPurchasesRows,
-  ] = await Promise.all([
-    querySnowflake(productUsageQueries.overview),
-    querySnowflake(productUsageQueries.topEvents),
-    querySnowflake(productUsageQueries.monthlyActivity),
-    querySnowflake(productUsageQueries.activationFunnel),
-    querySnowflake(productUsageQueries.jobSegments),
-    querySnowflake(productUsageQueries.recentEvents),
-    queryOptionalSnowflake(productUsageQueries.productPurchases),
-  ])
-
-  return {
-    activationFunnel: activationFunnelRows.map((row) => ({
-      stage: getString(row, 'STAGE'),
-      users: getNumber(row, 'USERS'),
-    })),
-    jobSegments: jobSegmentsRows.map((row) => ({
-      activeUsers: getNumber(row, 'ACTIVE_USERS'),
-      eventsPerUser: getNumber(row, 'EVENTS_PER_USER'),
-      jobTitle: getString(row, 'JOB_TITLE'),
-      totalEvents: getNumber(row, 'TOTAL_EVENTS'),
-      users: getNumber(row, 'USERS'),
-    })),
-    monthlyActivity: monthlyActivityRows.map((row) => ({
-      activeUsers: getNumber(row, 'ACTIVE_USERS'),
-      eventMonth: getDateString(row, 'EVENT_MONTH'),
-      totalEvents: getNumber(row, 'TOTAL_EVENTS'),
-    })),
-    overview: mapOverview(overviewRows[0] ?? {}),
-    productPurchases: productPurchasesRows.map((row) => ({
-      customers: getNumber(row, 'CUSTOMERS'),
-      productName: getString(row, 'PRODUCT_NAME'),
-      purchases: getNumber(row, 'PURCHASES'),
-    })),
-    recentEvents: recentEventsRows.map((row) => ({
-      eventName: getString(row, 'EVENT_NAME'),
-      eventTimestamp: getDateString(row, 'EVENT_TIMESTAMP'),
-      userId: getString(row, 'USER_ID'),
-    })),
-    topEvents: topEventsRows.map((row) => ({
-      eventName: getString(row, 'EVENT_NAME'),
-      firstSeenAt: getDateString(row, 'FIRST_SEEN_AT'),
-      lastSeenAt: getDateString(row, 'LAST_SEEN_AT'),
-      totalEvents: getNumber(row, 'TOTAL_EVENTS'),
-      uniqueUsers: getNumber(row, 'UNIQUE_USERS'),
-    })),
-  }
-}
 
 function mapModelMetricsRow(row) {
   return {
@@ -674,23 +464,6 @@ function querySnowflake(sqlText) {
       })
     })
   })
-}
-
-function mapOverview(row) {
-  return {
-    activationRate: getNumber(row, 'ACTIVATION_RATE'),
-    activatedUsers: getNumber(row, 'ACTIVATED_USERS'),
-    activeUsers: getNumber(row, 'ACTIVE_USERS'),
-    avgDistinctEvents: getNumber(row, 'AVG_DISTINCT_EVENTS'),
-    avgEventsPerActiveUser: getNumber(row, 'AVG_EVENTS_PER_ACTIVE_USER'),
-    avgEventsPerUser: getNumber(row, 'AVG_EVENTS_PER_USER'),
-    firstLoginAt: getDateString(row, 'FIRST_LOGIN_AT'),
-    latestLoginAt: getDateString(row, 'LATEST_LOGIN_AT'),
-    marketingOptedUsers: getNumber(row, 'MARKETING_OPTED_USERS'),
-    marketingOptInRate: getNumber(row, 'MARKETING_OPT_IN_RATE'),
-    totalEvents: getNumber(row, 'TOTAL_EVENTS'),
-    totalUsers: getNumber(row, 'TOTAL_USERS'),
-  }
 }
 
 function getDateString(row, key) {

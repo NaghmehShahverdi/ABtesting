@@ -8,11 +8,6 @@ import {
   type ActivationModelState,
 } from './views/activationModel'
 import {
-  fetchProductUsageDashboard,
-  renderProductUsageAnalytics,
-  type ProductUsageAnalyticsState,
-} from './views/productUsageAnalytics'
-import {
   bindAccountCopilot,
   fetchMlScoring,
   renderMlAlgorithm,
@@ -21,7 +16,6 @@ import {
 import { renderIntro } from './views/intro'
 import { renderActivationIcon } from './sidebar-icons/activationIcon'
 import { renderIntroductionIcon } from './sidebar-icons/introductionIcon'
-import { renderProductUsageAnalyticsIcon } from './sidebar-icons/productUsageAnalyticsIcon'
 import {
   fetchCausalInference,
   renderCausalInference,
@@ -30,12 +24,11 @@ import {
 import { renderCausalInferenceIcon } from './sidebar-icons/causalInferenceIcon'
 import { renderMlAlgorithmIcon } from './sidebar-icons/mlAlgorithmIcon'
 
-type AppView = 'intro' | 'activation' | 'usage' | 'ml' | 'causal'
+type AppView = 'intro' | 'activation' | 'ml' | 'causal'
 
 const appState: {
   activeView: AppView
   activationModel: ActivationModelState
-  productUsageAnalytics: ProductUsageAnalyticsState
   mlAlgorithm: MlAlgorithmState
   causalInference: CausalInferenceState
 } = {
@@ -44,9 +37,6 @@ const appState: {
     selectedEvents: defaultEvents,
     windowDays: defaultWindowDays,
     splitUsers: false,
-  },
-  productUsageAnalytics: {
-    status: 'idle',
   },
   mlAlgorithm: {
     status: 'idle',
@@ -105,10 +95,6 @@ function renderSidebarNav(): string {
       ${renderActivationIcon()}
       <span>Activation Model</span>
     </button>
-    <button class="nav-item ${appState.activeView === 'usage' ? 'active' : ''}" data-view="usage">
-      ${renderProductUsageAnalyticsIcon()}
-      <span>Product Usage Analytics</span>
-    </button>
     <button class="nav-item ${appState.activeView === 'ml' ? 'active' : ''}" data-view="ml">
       ${renderMlAlgorithmIcon()}
       <span>Account Scoring Model</span>
@@ -134,10 +120,6 @@ function renderMainContent(): string {
     return renderActivationModel(appState.activationModel)
   }
 
-  if (appState.activeView === 'usage') {
-    return renderProductUsageAnalytics(appState.productUsageAnalytics)
-  }
-
   if (appState.activeView === 'ml') {
     return renderMlAlgorithm(appState.mlAlgorithm)
   }
@@ -158,13 +140,6 @@ function loadViewData() {
   }
 
   if (
-    appState.activeView === 'usage' &&
-    (appState.productUsageAnalytics.status === 'idle' || appState.productUsageAnalytics.status === 'error')
-  ) {
-    loadProductUsageAnalytics()
-  }
-
-  if (
     appState.activeView === 'ml' &&
     (appState.mlAlgorithm.status === 'idle' || appState.mlAlgorithm.status === 'error')
   ) {
@@ -178,32 +153,6 @@ function loadViewData() {
     (appState.causalInference.status === 'idle' || appState.causalInference.status === 'error')
   ) {
     loadCausalInference()
-  }
-}
-
-async function loadProductUsageAnalytics() {
-  if (appState.productUsageAnalytics.status === 'loading') {
-    return
-  }
-
-  appState.productUsageAnalytics = { status: 'loading' }
-  updateMainContent()
-
-  try {
-    const dashboard = await fetchProductUsageDashboard()
-    appState.productUsageAnalytics = {
-      dashboard,
-      status: 'success',
-    }
-  } catch (error) {
-    appState.productUsageAnalytics = {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      status: 'error',
-    }
-  }
-
-  if (appState.activeView === 'usage') {
-    updateMainContent()
   }
 }
 
