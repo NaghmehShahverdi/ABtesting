@@ -190,17 +190,17 @@ const modelCard = {
   scoringUnit: 'Account-month',
   positiveClass:
     'Account creates a Won / Closed Won deal within 90 days of the snapshot (excludes accounts already won before snapshot)',
-  refreshCadence: 'Monthly snapshot · retrain monthly',
+  refreshCadence: 'Demo data is frozen · production design supports monthly scoring and retraining',
   knownLimitation: 'Deal created_date is used as proxy for close/stage transition date',
 }
 
 const themeBlurbs: Record<string, string> = {
-  'Company fit': 'Bigger, more senior, multi-seat accounts in the right industries convert more often.',
-  'Sales engagement': 'Longer, recent sales conversations and live deal activity are strong buying signals.',
-  'Product usage': 'Accounts that set up workspaces and stay active in the product are warming up to buy.',
-  Marketing: 'How the account was acquired and its marketing engagement both shape the odds.',
-  Geography: 'Regional patterns in the model can nudge scores up or down for similar accounts.',
-  Other: 'Additional model signals that do not fit a single GTM theme.',
+  'Company fit': 'Company-profile features contribute strongly to model ranking; feature importance does not show direction or causality.',
+  'Sales engagement': 'Sales-activity features contribute strongly to predictions, but may reflect both buyer intent and prior Sales attention.',
+  'Product usage': 'Product-usage signals help rank accounts; they should not be interpreted as proof that usage causes conversion.',
+  Marketing: 'Acquisition and engagement features influence ranking, but this analysis does not estimate incremental marketing impact.',
+  Geography: 'Regional features contribute to predictions and should be monitored for stability and unintended bias.',
+  Other: 'Additional predictive signals that do not fit a single GTM theme.',
 }
 
 export async function fetchMlScoring(): Promise<MlScoringDashboard> {
@@ -234,16 +234,35 @@ export function renderMlAlgorithm(state: MlAlgorithmState): string {
   return `
     <section class="page-header">
       <p class="eyebrow">Account Scoring Model</p>
-      <h1>Prioritize accounts most likely to convert in the next 90 days.</h1>
+      <h1>See how a live model prioritizes accounts likely to convert.</h1>
       <p class="summary">
         This model reads each account's product usage, sales conversations, marketing history,
-        and company profile, then predicts the probability it becomes a <strong>Closed&nbsp;Won</strong>
-        deal in the next 90 days. Results are served live from Snowflake so the call list is always current.
+        and company profile, then estimates its probability of becoming a <strong>Closed&nbsp;Won</strong>
+        deal in the next 90 days. The application queries Snowflake through a live API, while the underlying
+        portfolio dataset is a frozen historical snapshot used to demonstrate a production-ready architecture.
       </p>
     </section>
 
+    ${renderDataStatus()}
     ${renderModelCardSection()}
     ${renderBody(state)}
+  `
+}
+
+function renderDataStatus(): string {
+  return `
+    <aside class="ml-data-status" aria-label="Demonstration data status">
+      <div>
+        <span>Historical demonstration</span>
+        <strong>Live pipeline, frozen source data</strong>
+      </div>
+      <p>
+        Snowflake and the API are queried at request time, but the uploaded dataset is no longer refreshed.
+        Scores and account recommendations illustrate how a live system would operate; they are not current
+        production recommendations. A production deployment would ingest new activity, score monthly, monitor
+        drift, and retrain under a governed schedule.
+      </p>
+    </aside>
   `
 }
 
@@ -393,7 +412,7 @@ function renderHowItWorksSection(dashboard: MlScoringDashboard): string {
     {
       n: '2',
       title: 'Look only at the past',
-      body: 'Features use data on or before the snapshot, so the score never peeks at the future. No leakage.',
+      body: 'Features are restricted to data available on or before each snapshot. The design aims to prevent future-data leakage, subject to source timestamp quality.',
     },
     {
       n: '3',
@@ -717,8 +736,10 @@ function renderDriversSection(dashboard: MlScoringDashboard): string {
         <span>Population-level feature importance</span>
       </div>
       <p class="ml-section-lead">
-        These are the model's strongest signals overall. They answer "what does the model care about globally?"
-        Account cards below answer the Sales question: "why is <em>this</em> account ranked high right now?"
+        These are the model's strongest signals overall. Importance measures contribution magnitude, not whether
+        a feature raises or lowers a score, and not whether it causes conversion. They answer "what does the model
+        rely on globally?"
+        Account cards below illustrate the Sales question: "why was <em>this</em> account ranked high in this scoring run?"
       </p>
       <div class="usage-two-column">
         <div class="chart-card">
@@ -813,7 +834,9 @@ function renderAccountExplanationsSection(dashboard: MlScoringDashboard): string
       </div>
 
       <p class="ml-footnote">
-        Cards show the top ${accounts.length} accounts to action this week. Cohort conversion rates above reflect held-out test performance across the full ranked list (${cohort ? formatInteger(cohort.totalAccounts) : 'all'} accounts), not just these ${accounts.length}.
+        Cards show the top ${accounts.length} accounts from the frozen historical scoring run. In production, this
+        list would be regenerated on a defined cadence and timestamped before use. Cohort conversion rates above
+        reflect held-out test performance across the full ranked list (${cohort ? formatInteger(cohort.totalAccounts) : 'all'} accounts), not just these ${accounts.length}.
       </p>
     </section>
   `
@@ -858,7 +881,7 @@ function renderAccountExplanationCard(account: AccountExplanation, hasExplanatio
           <p>${account.industry} · ${account.segment} · ${formatCurrency(account.arr)} ARR</p>
         </div>
         <div class="ml-account-score">
-          <span>Win probability</span>
+          <span>Estimated 90-day win probability</span>
           <strong>${formatPercent(account.probability, 0)}</strong>
         </div>
       </header>
@@ -889,7 +912,7 @@ function renderAccountExplanationCard(account: AccountExplanation, hasExplanatio
           }
         </div>
         <div class="ml-account-action">
-          <span>Recommended action</span>
+          <span>Illustrative next action</span>
           <p>${account.recommendedAction}</p>
         </div>
       `
@@ -929,11 +952,12 @@ function renderAccountCopilot(): string {
           <p class="eyebrow">New · AI assistant</p>
           <h2>Ask the Account Scoring Copilot</h2>
         </div>
-        <span>Grounded in current Snowflake scoring results</span>
+        <span>Grounded in the published historical Snowflake results</span>
       </div>
 
       <p class="ml-section-lead">
-        The copilot receives current model metrics, global drivers, and ranked accounts.
+        The copilot receives the currently published historical model metrics, global drivers, and ranked accounts.
+        It demonstrates how a production assistant could use refreshed scoring outputs.
         It cannot see Snowflake credentials or invent account-level reason codes.
       </p>
 
@@ -1094,10 +1118,10 @@ function getThemeColor(theme: string): string {
 
 function renderActionSection(): string {
   const items = [
-    'Sales works the ranked list top-down each week, leading with the listed buying signals.',
-    'Marketing doubles down on the channels and segments that produce high-scoring accounts.',
-    'Scores are published to Snowflake and can be surfaced in the CRM or next to Product Usage Analytics.',
-    'Production roadmap: true close-date targets, SHAP explanations, monthly retraining, and drift monitoring.',
+    'In production, Sales would review a timestamped ranked list within its weekly capacity, using model signals as decision support rather than an automatic exclusion rule.',
+    'Marketing may use predictive segments to generate hypotheses, but budget changes require causal tests or controlled experiments.',
+    'The demonstrated pipeline publishes scores to Snowflake and can surface refreshed outputs in CRM or account workflows.',
+    'Production requirements: reliable close dates, directional SHAP explanations, scheduled scoring and retraining, drift monitoring, and model-governance approval.',
   ]
 
   return `
@@ -1105,9 +1129,9 @@ function renderActionSection(): string {
       <div class="section-heading">
         <div>
           <p class="eyebrow">From model to action</p>
-          <h2>How the team uses it</h2>
+          <h2>How the team would use it in production</h2>
         </div>
-        <span>Built to plug into the GTM motion</span>
+        <span>Demonstrated workflow · not a current operating list</span>
       </div>
       <div class="insight-card ml-action-card">
         <ul class="ml-action-list">
