@@ -1,0 +1,36 @@
+.ml-selection-status {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 0.45fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+}
+
+.ml-selection-status > span {
+  color: #c2410c;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ml-selection-status strong {
+  color: #9a3412;
+  font-size: 0.9rem;
+}
+
+.ml-selection-status p {
+  color: #9a3412;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .ml-selection-status {
+    grid-template-columns: 1fr;
+  }
+}

@@ -3,6 +3,7 @@
 // results live from Snowflake (ML_MODEL_METRICS, ML_CALIBRATION,
 // ML_FEATURE_IMPORTANCE, ML_ACCOUNT_SCORES) through the /api/ml-scoring
 // endpoint. There is no CSV or hardcoded number on this page.
+import '../model-selection.css'
 
 type ModelRow = {
   name: string
@@ -459,7 +460,8 @@ function renderLiftSection(dashboard: MlScoringDashboard): string {
         <p class="ml-chart-caption">
           Each bar is the <strong>real</strong> closed-won rate of accounts in that score band on the held-out period.
           The top band converts at ${formatPercent(top.actualWinRate, 0)} versus near zero at the bottom &mdash;
-          and its predicted ${formatPercent(top.avgPredicted, 0)} lines up closely with reality, so the probabilities are dependable.
+          its predicted ${formatPercent(top.avgPredicted, 0)} is close enough to the observed rate for prioritization,
+          though threshold decisions should continue to monitor calibration over time.
         </p>
         <div class="ml-decile-chart">
           ${deciles
@@ -479,7 +481,8 @@ function renderLiftSection(dashboard: MlScoringDashboard): string {
       </div>
       <p class="ml-footnote">
         Only ${formatInteger(bottomHalfWins)} of ${formatInteger(totalWins)} eventual wins came from the bottom half of scores &mdash;
-        clear evidence the team can safely deprioritize low-scoring accounts.
+        evidence that the score concentrates wins toward the top. Low-scoring accounts can be deprioritized within a capacity-constrained
+        workflow, but the score should not be used as an automatic exclusion rule.
       </p>
     </section>
   `
@@ -494,12 +497,12 @@ function renderLeaderboardSection(dashboard: MlScoringDashboard): string {
       <div class="section-heading">
         <div>
           <p class="eyebrow">Model selection</p>
-          <h2>We compared ${dashboard.models.length} models and shipped the best fit</h2>
+          <h2>XGBoost won the validation rule; held-out results reveal credible challengers</h2>
         </div>
         <span>Held-out test period &middot; selection made on validation</span>
       </div>
 
-      ${rationale ? renderSelectionCallout(rationale) : ''}
+      ${rationale ? renderSelectionCallout(rationale, dashboard.validationModels) : ''}
 
       <div class="table-card ml-table-scroll">
         <table class="ml-metrics-table">
@@ -569,36 +572,59 @@ function renderLeaderboardSection(dashboard: MlScoringDashboard): string {
   `
 }
 
-function renderSelectionCallout(rationale: SelectionRationale): string {
+function renderSelectionCallout(
+  rationale: SelectionRationale,
+  validationModels: ModelRow[],
+): string {
   const deployed = rationale.deployedLabel
   const challenger = rationale.bestTestAucLabel
   const revenueLeader = rationale.bestTestRevenueLabel
-  const sameAsRevenueLeader = revenueLeader === deployed
+  const validationRunnerUp =
+    [...validationModels]
+      .filter((model) => model.label !== deployed)
+      .sort(
+        (first, second) =>
+          second.revenueCaptureAt10 - first.revenueCaptureAt10 ||
+          second.prAuc - first.prAuc,
+      )[0] ?? null
+  const validationMargin = Math.max(
+    0,
+    rationale.validationRevenueCapture - (validationRunnerUp?.revenueCaptureAt10 ?? 0),
+  )
+  const testRevenueGap = rationale.bestTestRevenue - rationale.testRevenueCapture
 
   const reasons = [
     {
-      title: 'Business goal',
-      body: `Sales cares about dollars in the top-ranked accounts, not just win count. ${deployed} captured ${formatPercent(rationale.validationRevenueCapture)} of validation revenue in the top 10% when selected${sameAsRevenueLeader ? ` and leads on test revenue at ${formatPercent(rationale.testRevenueCapture)}` : ''}.`,
+      title: 'Why it was selected',
+      body: `${deployed} won the pre-specified validation rule: ${formatPercent(rationale.validationRevenueCapture)} revenue capture in the top 10%, with PR-AUC as the tie-break. The advantage over ${validationRunnerUp?.label ?? 'the runner-up'} was ${formatPp(validationMargin)} — a narrow lead, not proof of superiority.`,
     },
     {
-      title: `Why not ${challenger}?`,
-      body: `It has the strongest test ROC-AUC (${rationale.bestTestAuc.toFixed(3)}), lift (${rationale.bestTestLift.toFixed(2)}× via ${rationale.bestTestLiftLabel}), and recall (${formatPercent(rationale.bestTestRecall)} via ${rationale.bestTestRecallLabel}), but those metrics treat every win equally. ${challenger !== revenueLeader ? `${revenueLeader} captures more test revenue (${formatPercent(rationale.bestTestRevenue)} vs ${formatPercent(rationale.testRevenueCapture)} for ${deployed}).` : ''}${rationale.deployedBeatsBestAucOnRevenue ? ` ${deployed} still ranks higher-value wins into the top decile.` : ''}`,
+      title: 'What the holdout revealed',
+      body: `${revenueLeader} led test revenue capture at ${formatPercent(rationale.bestTestRevenue)}, ${formatPp(testRevenueGap)} above ${deployed}. ${challenger} led ROC-AUC (${rationale.bestTestAuc.toFixed(3)}), PR-AUC (${rationale.bestTestPrAuc.toFixed(3)}), lift (${rationale.bestTestLift.toFixed(2)}×), recall (${formatPercent(rationale.bestTestRecall)}), and Brier score (${rationale.bestTestBrier.toFixed(4)}).`,
     },
     {
-      title: 'Imbalance + calibration',
-      body: `PR-AUC on test is ${rationale.testPrAuc.toFixed(3)} for ${deployed} (best: ${rationale.bestTestPrAuc.toFixed(3)} via ${rationale.bestTestPrAucLabel}). Brier score is ${rationale.testBrierScore.toFixed(4)} (best: ${rationale.bestTestBrier.toFixed(4)} via ${rationale.bestTestBrierLabel}) — probabilities stay usable for routing thresholds, not just ranking.`,
+      title: 'Director decision',
+      body: `Keep ${deployed} as the frozen benchmark because it was selected before viewing test outcomes. Do not call it decisively best. Treat ${revenueLeader} and ${challenger} as challengers for the next cycle, using rolling temporal backtests, uncertainty intervals, and a selection tolerance aligned to Sales capacity.`,
     },
   ]
 
   return `
     <div class="ml-selection-callout">
       <div class="ml-selection-header">
-        <h3>Why ${deployed} is deployed</h3>
+        <h3>Why ${deployed} was selected — and what the test period changed</h3>
         <p>
-          Model choice is not based on ROC-AUC or lift alone. We select on
-          <em>${rationale.primaryMetric}</em> using the ${rationale.selectionDataset} period
-          (tie-break: ${rationale.tieBreakMetric}), then report holdout performance on the
-          ${rationale.evaluationDataset} period below.
+          Selection and evaluation are intentionally separated. The ${rationale.selectionDataset} period chose the model using
+          <em>${rationale.primaryMetric}</em> (tie-break: ${rationale.tieBreakMetric}); the
+          ${rationale.evaluationDataset} period evaluates whether that choice generalized. We do not switch models after
+          inspecting the test set, because that would turn the holdout into another selection dataset.
+        </p>
+      </div>
+      <div class="ml-selection-status">
+        <span>Current status</span>
+        <strong>Frozen benchmark, not a proven winner</strong>
+        <p>
+          The deployed score is useful and materially better than random, but held-out evidence does not establish
+          XGBoost as the strongest candidate across business value, ranking quality, and calibration.
         </p>
       </div>
       <div class="ml-selection-grid">
@@ -1078,6 +1104,10 @@ function decileLabel(binOrder: number, maxOrder: number): string {
 
 function formatPercent(value: number, digits = 0): string {
   return `${(value * 100).toFixed(digits)}%`
+}
+
+function formatPp(value: number, digits = 1): string {
+  return `${(value * 100).toFixed(digits)} pp`
 }
 
 function formatInteger(value: number): string {
