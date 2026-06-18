@@ -88,8 +88,62 @@
   line-height: 1.5;
 }
 
+.ci-ranking-explainer {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.ci-ranking-explainer > div {
+  padding: 1rem;
+  border-right: 1px solid var(--border);
+}
+
+.ci-ranking-explainer > div:last-child {
+  border-right: 0;
+}
+
+.ci-ranking-explainer span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.ci-ranking-explainer strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.ci-ranking-explainer p {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 @media (max-width: 700px) {
   .ci-decision-banner {
     grid-template-columns: 1fr;
+  }
+
+  .ci-ranking-explainer {
+    grid-template-columns: 1fr;
+  }
+
+  .ci-ranking-explainer > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ci-ranking-explainer > div:last-child {
+    border-bottom: 0;
   }
 }

@@ -566,34 +566,60 @@ function renderAccountRecommendationsSection(dashboard: CausalInferenceDashboard
 
       <p class="ml-section-lead">
         These rankings are useful for recruiting a diverse experimental cohort inside common support.
-        Individual uplift values are unstable point predictions with no account-level confidence intervals;
-        they are not expected conversion gains and should not be shown to Sales as promises.
+        They should not be interpreted as expected conversion gains or used as a Sales call list.
       </p>
+
+      <div class="ci-ranking-explainer">
+        <div>
+          <span>What the ranking means</span>
+          <strong>Relative experiment-recruitment priority</strong>
+          <p>
+            Accounts are ordered by the difference between two cross-fitted model scenario scores:
+            encouraged to adopt versus not encouraged.
+          </p>
+        </div>
+        <div>
+          <span>What it does not mean</span>
+          <strong>Not a calibrated individual treatment effect</strong>
+          <p>
+            A high rank does not mean the intervention will create the displayed probability difference.
+            There is no account-level confidence interval or independent holdout validation.
+          </p>
+        </div>
+        <div>
+          <span>Where to find causal estimates</span>
+          <strong>Use subgroup AIPW + 95% CI</strong>
+          <p>
+            Treatment-effect magnitudes belong in the Treatment Explorer and Exploratory Segments sections,
+            where estimates include common-support restrictions and uncertainty intervals.
+          </p>
+        </div>
+      </div>
 
       <div class="table-card ml-table-scroll">
         <table class="ml-metrics-table ci-intervention-table">
           <thead>
             <tr>
+              <th>Rank</th>
               <th>Account</th>
               <th>Treatment</th>
-              <th>Model uplift signal</th>
-              <th>P(treat)</th>
-              <th>P(control)</th>
-              <th>Reliability</th>
+              <th>Encouraged model score</th>
+              <th>Not-encouraged model score</th>
+              <th>Model stability flag</th>
             </tr>
           </thead>
           <tbody>
             ${dashboard.interventionCandidates
               .slice(0, 20)
               .map(
-                (row) => `
+                (row, index) => `
               <tr>
+                <td><strong>#${index + 1}</strong></td>
                 <td>
                   <strong>${row.account_name}</strong>
                   <span class="ml-priority-meta">${row.industry} · ${row.segment} · ${formatCurrency(row.estimated_annual_recurring_revenue)} ARR</span>
                 </td>
                 <td>${treatmentLabel(row.treatment_name)}</td>
-                <td><strong>${formatPp(row.estimated_uplift)}</strong></td>
                 <td>${formatPercent(row.predicted_conversion_if_treated, 0)}</td>
                 <td>${formatPercent(row.predicted_conversion_if_control, 0)}</td>
                 <td><span class="ml-action-tag">${row.probability_reliability}</span></td>
