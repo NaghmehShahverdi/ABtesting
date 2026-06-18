@@ -115,6 +115,14 @@ function updateMainContent() {
   main.innerHTML = renderMainContent()
 }
 
+function refreshActivationView() {
+  updateMainContent()
+  bindActivationControls(() => appState.activationModel, (nextState) => {
+    appState.activationModel = nextState
+    refreshActivationView()
+  })
+}
+
 function renderMainContent(): string {
   if (appState.activeView === 'activation') {
     return renderActivationModel(appState.activationModel)
@@ -133,10 +141,8 @@ function renderMainContent(): string {
 
 function loadViewData() {
   if (appState.activeView === 'activation') {
-    bindActivationControls(appState.activationModel, (nextState) => {
-      appState.activationModel = nextState
-      updateMainContent()
-    })
+    refreshActivationView()
+    return
   }
 
   if (
