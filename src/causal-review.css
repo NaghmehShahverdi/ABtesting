@@ -129,6 +129,97 @@
   line-height: 1.5;
 }
 
+.ci-propensity-explainer {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+  gap: 1.25rem;
+  padding: 1.1rem 1.2rem;
+  background: linear-gradient(135deg, #f8fafc, #eff6ff);
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+}
+
+.ci-propensity-copy > span {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: #2563eb;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ci-propensity-copy h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.ci-propensity-copy p,
+.ci-propensity-note {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.ci-propensity-copy p {
+  margin-top: 0.45rem;
+}
+
+.ci-propensity-scale {
+  align-self: center;
+}
+
+.ci-propensity-scale-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.ci-propensity-scale-bar span.is-low {
+  background: #60a5fa;
+}
+
+.ci-propensity-scale-bar span.is-mid {
+  background: #fbbf24;
+}
+
+.ci-propensity-scale-bar span.is-high {
+  background: #f87171;
+}
+
+.ci-propensity-scale-labels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+}
+
+.ci-propensity-scale-labels strong,
+.ci-propensity-scale-labels span {
+  display: block;
+}
+
+.ci-propensity-scale-labels strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.ci-propensity-scale-labels span {
+  margin-top: 0.16rem;
+  color: var(--muted);
+  font-size: 0.69rem;
+  line-height: 1.35;
+}
+
+.ci-propensity-note {
+  grid-column: 1 / -1;
+  padding-top: 0.8rem;
+  border-top: 1px solid #dbeafe;
+}
+
 @media (max-width: 700px) {
   .ci-decision-banner {
     grid-template-columns: 1fr;
@@ -145,5 +236,13 @@
 
   .ci-ranking-explainer > div:last-child {
     border-bottom: 0;
+  }
+
+  .ci-propensity-explainer {
+    grid-template-columns: 1fr;
+  }
+
+  .ci-propensity-note {
+    grid-column: auto;
   }
 }

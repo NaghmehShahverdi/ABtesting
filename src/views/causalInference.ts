@@ -650,6 +650,44 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
         Low common support means the estimate may not generalize to the full population.
       </p>
 
+      <div class="ci-propensity-explainer">
+        <div class="ci-propensity-copy">
+          <span>Diagnostic guide</span>
+          <h3>What does Propensity AUC mean?</h3>
+          <p>
+            It measures how well <strong>pre-treatment account characteristics</strong> distinguish accounts
+            that adopted the feature early from those that did not. It is a treatment-selection diagnostic,
+            not a measure of treatment effectiveness or causal-model accuracy.
+          </p>
+        </div>
+        <div class="ci-propensity-scale" aria-label="Propensity AUC interpretation">
+          <div class="ci-propensity-scale-bar">
+            <span class="is-low"></span>
+            <span class="is-mid"></span>
+            <span class="is-high"></span>
+          </div>
+          <div class="ci-propensity-scale-labels">
+            <div>
+              <strong>≈ 0.50</strong>
+              <span>Little observed selection signal</span>
+            </div>
+            <div>
+              <strong>0.60–0.70</strong>
+              <span>Moderate selection differences</span>
+            </div>
+            <div>
+              <strong>≥ 0.80</strong>
+              <span>Strong separation and confounding risk</span>
+            </div>
+          </div>
+        </div>
+        <p class="ci-propensity-note">
+          <strong>Important:</strong> lower is not automatically better. An AUC near 0.5 can also reflect a weak
+          or unstable propensity model. Always interpret it with common support, treated/control sample sizes,
+          extreme propensities, and post-adjustment covariate balance.
+        </p>
+      </div>
+
       <div class="table-card ml-table-scroll">
         <table class="ml-metrics-table">
           <thead>
@@ -673,7 +711,10 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
                 <td>${formatInteger(row.treated_accounts)}</td>
                 <td>${formatInteger(row.control_accounts)}</td>
                 <td>${formatSignedPp(row.naive_difference)}</td>
-                <td>${row.cross_fitted_propensity_auc.toFixed(2)}</td>
+                <td>
+                  <strong>${row.cross_fitted_propensity_auc.toFixed(2)}</strong>
+                  <span class="ml-priority-meta">${propensityAucLabel(row.cross_fitted_propensity_auc)}</span>
+                </td>
                 <td>${overlapBadge(effect?.common_support_rate ?? row.common_support_rate)}</td>
                 <td>${formatPercent(row.treated_below_0_05, 0)} treated &lt;0.05 · ${formatPercent(row.control_below_0_05, 0)} control &lt;0.05</td>
               </tr>
@@ -718,6 +759,19 @@ function overlapBadge(rate: number): string {
     return `<span class="ci-overlap ci-overlap-moderate">${formatPercent(rate, 0)} support</span>`
   }
   return `<span class="ci-overlap ci-overlap-poor">${formatPercent(rate, 0)} support</span>`
+}
+
+function propensityAucLabel(value: number): string {
+  if (value >= 0.8) {
+    return 'strong separation'
+  }
+  if (value >= 0.6) {
+    return 'moderate selection'
+  }
+  if (value >= 0.5) {
+    return 'weak selection signal'
+  }
+  return 'weak / unstable model'
 }
 
 function evidenceBadge(row: CausalEffectRow): string {
