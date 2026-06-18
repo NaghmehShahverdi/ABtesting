@@ -1,0 +1,107 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ml-copilot-panel {
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 14px 34px #0f172a0f;
+}
+
+.ml-copilot-messages {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 180px;
+  max-height: 430px;
+  padding: 0.5rem;
+  overflow-y: auto;
+}
+
+.ml-copilot-message {
+  max-width: 80%;
+  padding: 0.85rem 1rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  border-radius: 14px;
+  line-height: 1.55;
+}
+
+.ml-copilot-message.assistant {
+  justify-self: start;
+  color: var(--text);
+  background: #f1f5f9;
+}
+
+.ml-copilot-message.user {
+  justify-self: end;
+  color: #fff;
+  background: var(--accent);
+}
+
+.ml-copilot-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.ml-copilot-suggestions button {
+  padding: 0.5rem 0.75rem;
+  color: var(--accent);
+  cursor: pointer;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+}
+
+.ml-copilot-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.ml-copilot-input-wrap {
+  display: block;
+}
+
+.ml-copilot-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font: inherit;
+}
+
+.ml-copilot-form textarea:focus {
+  border-color: #93c5fd;
+  outline: 3px solid #dbeafe;
+}
+
+.ml-copilot-form button:disabled,
+.ml-copilot-suggestions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 560px) {
+  .ml-copilot-form {
+    grid-template-columns: 1fr;
+  }
+
+  .ml-copilot-message {
+    max-width: 90%;
+  }
+}

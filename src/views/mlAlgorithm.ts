@@ -133,6 +133,14 @@ export type MlAlgorithmState = {
 
 type Theme = 'Company fit' | 'Sales engagement' | 'Product usage' | 'Marketing' | 'Geography' | 'Other'
 
+type CopilotMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+const copilotHistory: CopilotMessage[] = []
+let copilotRequestInFlight = false
+
 const themeColors: Record<string, string> = {
   'Company fit': '#2563eb',
   'Sales engagement': '#16a34a',
@@ -315,6 +323,7 @@ function renderBody(state: MlAlgorithmState): string {
       ${renderLeaderboardSection(dashboard)}
       ${renderDriversSection(dashboard)}
       ${renderAccountExplanationsSection(dashboard)}
+      ${renderAccountCopilot()}
       ${renderActionSection()}
     </div>
   `
@@ -813,6 +822,191 @@ function renderAccountExplanationCard(account: AccountExplanation, hasExplanatio
   `
 }
 
+function renderAccountCopilot(): string {
+  const messages =
+    copilotHistory.length > 0
+      ? copilotHistory
+          .map(
+            (message) => `
+              <div class="ml-copilot-message ${message.role}">
+                ${escapeHtml(message.content)}
+              </div>
+            `,
+          )
+          .join('')
+      : `
+          <div class="ml-copilot-message assistant">
+            Ask me which accounts to prioritize, why the deployed model was selected,
+            or how to interpret model performance.
+          </div>
+        `
+
+  return `
+    <section class="usage-section ml-copilot">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">AI assistant</p>
+          <h2>Ask the Account Scoring Copilot</h2>
+        </div>
+        <span>Grounded in current Snowflake scoring results</span>
+      </div>
+
+      <p class="ml-section-lead">
+        The copilot receives current model metrics, global drivers, and ranked accounts.
+        It cannot see Snowflake credentials or invent account-level reason codes.
+      </p>
+
+      <div class="ml-copilot-panel">
+        <div
+          id="account-copilot-messages"
+          class="ml-copilot-messages"
+          role="log"
+          aria-live="polite"
+        >
+          ${messages}
+        </div>
+
+        <div class="ml-copilot-suggestions" aria-label="Suggested questions">
+          <button type="button" data-copilot-question="Which five accounts should sales prioritize, and why?">
+            Top five accounts
+          </button>
+          <button type="button" data-copilot-question="Why was the deployed model selected instead of the alternatives?">
+            Explain model selection
+          </button>
+          <button type="button" data-copilot-question="What are the strongest global model drivers, and how should sales interpret them?">
+            Explain model drivers
+          </button>
+        </div>
+
+        <form id="account-copilot-form" class="ml-copilot-form">
+          <label class="ml-copilot-input-wrap">
+            <span class="sr-only">Question for Account Scoring Copilot</span>
+            <textarea
+              id="account-copilot-input"
+              maxlength="1000"
+              rows="3"
+              placeholder="Ask about accounts, scores, models, calibration, or drivers…"
+              required
+            ></textarea>
+          </label>
+          <button type="submit" class="primary-action">
+            ${copilotRequestInFlight ? 'Thinking…' : 'Ask Copilot'}
+          </button>
+        </form>
+      </div>
+    </section>
+  `
+}
+
+export function bindAccountCopilot(): void {
+  const form = document.querySelector<HTMLFormElement>('#account-copilot-form')
+  const input = document.querySelector<HTMLTextAreaElement>('#account-copilot-input')
+
+  if (!form || !input || form.dataset.bound === 'true') {
+    return
+  }
+
+  form.dataset.bound = 'true'
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    const question = input.value.trim()
+    if (!question || copilotRequestInFlight) {
+      return
+    }
+
+    input.value = ''
+    await submitCopilotQuestion(question)
+  })
+
+  document
+    .querySelectorAll<HTMLButtonElement>('[data-copilot-question]')
+    .forEach((button) => {
+      button.addEventListener('click', async () => {
+        const question = button.dataset.copilotQuestion?.trim()
+        if (question && !copilotRequestInFlight) {
+          await submitCopilotQuestion(question)
+        }
+      })
+    })
+}
+
+async function submitCopilotQuestion(question: string): Promise<void> {
+  const priorHistory = copilotHistory.slice(-6)
+  appendCopilotMessage('user', question)
+  setCopilotLoading(true)
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/account-copilot`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        question,
+        history: priorHistory,
+      }),
+    })
+    const payload = await response.json()
+
+    if (!response.ok) {
+      const details = typeof payload?.details === 'string' ? ` ${payload.details}` : ''
+      throw new Error(`${payload?.error ?? 'Account Copilot could not answer.'}${details}`)
+    }
+
+    if (typeof payload?.answer !== 'string' || !payload.answer.trim()) {
+      throw new Error('Account Copilot returned an empty answer.')
+    }
+
+    appendCopilotMessage('assistant', payload.answer.trim())
+  } catch (error) {
+    appendCopilotMessage(
+      'assistant',
+      error instanceof Error ? error.message : 'Account Copilot could not answer.',
+    )
+  } finally {
+    setCopilotLoading(false)
+  }
+}
+
+function appendCopilotMessage(role: CopilotMessage['role'], content: string): void {
+  copilotHistory.push({ role, content })
+
+  const container = document.querySelector<HTMLDivElement>('#account-copilot-messages')
+  if (!container) {
+    return
+  }
+
+  const message = document.createElement('div')
+  message.className = `ml-copilot-message ${role}`
+  message.textContent = content
+  container.appendChild(message)
+  container.scrollTop = container.scrollHeight
+}
+
+function setCopilotLoading(loading: boolean): void {
+  copilotRequestInFlight = loading
+
+  const submitButton = document.querySelector<HTMLButtonElement>(
+    '#account-copilot-form button[type="submit"]',
+  )
+  const input = document.querySelector<HTMLTextAreaElement>('#account-copilot-input')
+
+  if (submitButton) {
+    submitButton.disabled = loading
+    submitButton.textContent = loading ? 'Thinking…' : 'Ask Copilot'
+  }
+  if (input) {
+    input.disabled = loading
+  }
+
+  document
+    .querySelectorAll<HTMLButtonElement>('[data-copilot-question]')
+    .forEach((button) => {
+      button.disabled = loading
+    })
+}
+
 function getThemeColor(theme: string): string {
   return themeColors[theme] ?? themeColors.Other
 }
@@ -898,4 +1092,13 @@ function formatCurrency(value: number): string {
     return `$${Math.round(value / 1_000)}K`
   }
   return `$${value}`
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
 }

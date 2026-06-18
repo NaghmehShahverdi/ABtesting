@@ -1,4 +1,5 @@
 import './style.css'
+import './copilot.css'
 import {
   bindActivationControls,
   defaultEvents,
@@ -12,6 +13,7 @@ import {
   type ProductUsageAnalyticsState,
 } from './views/productUsageAnalytics'
 import {
+  bindAccountCopilot,
   fetchMlScoring,
   renderMlAlgorithm,
   type MlAlgorithmState,
@@ -54,50 +56,77 @@ const appState: {
   },
 }
 
+let shellMounted = false
+
 function renderApp() {
-  document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <span class="brand-mark">EC</span>
-          <div>
-            <strong>Experiment Copilot</strong>
-            <small>Activation analytics</small>
+  const app = document.querySelector<HTMLDivElement>('#app')!
+
+  if (!shellMounted) {
+    app.innerHTML = `
+      <div class="app-shell">
+        <aside class="sidebar">
+          <div class="brand">
+            <span class="brand-mark">EC</span>
+            <div>
+              <strong>Experiment Copilot</strong>
+              <small>Activation analytics</small>
+            </div>
           </div>
-        </div>
 
-        <nav class="sidebar-nav" aria-label="Product tools">
-          <button class="nav-item ${appState.activeView === 'intro' ? 'active' : ''}" data-view="intro">
-            ${renderIntroductionIcon()}
-            <span>Introduction</span>
-          </button>
-          <button class="nav-item ${appState.activeView === 'activation' ? 'active' : ''}" data-view="activation">
-            ${renderActivationIcon()}
-            <span>Activation Model</span>
-          </button>
-          <button class="nav-item ${appState.activeView === 'usage' ? 'active' : ''}" data-view="usage">
-            ${renderProductUsageAnalyticsIcon()}
-            <span>Product Usage Analytics</span>
-          </button>
-          <button class="nav-item ${appState.activeView === 'ml' ? 'active' : ''}" data-view="ml">
-            ${renderMlAlgorithmIcon()}
-            <span>Account Scoring Model</span>
-          </button>
-          <button class="nav-item ${appState.activeView === 'causal' ? 'active' : ''}" data-view="causal">
-            ${renderCausalInferenceIcon()}
-            <span>Causal Inference</span>
-          </button>
-        </nav>
-      </aside>
+          <nav class="sidebar-nav" aria-label="Product tools">
+            ${renderSidebarNav()}
+          </nav>
+        </aside>
 
-      <main class="content">
-        ${renderMainContent()}
-      </main>
-    </div>
-  `
+        <main class="content"></main>
+      </div>
+    `
 
-  bindAppEvents()
+    bindAppEvents()
+    shellMounted = true
+  } else {
+    const nav = document.querySelector('.sidebar-nav')
+    if (nav) {
+      nav.innerHTML = renderSidebarNav()
+    }
+  }
+
+  updateMainContent()
   loadViewData()
+}
+
+function renderSidebarNav(): string {
+  return `
+    <button class="nav-item ${appState.activeView === 'intro' ? 'active' : ''}" data-view="intro">
+      ${renderIntroductionIcon()}
+      <span>Introduction</span>
+    </button>
+    <button class="nav-item ${appState.activeView === 'activation' ? 'active' : ''}" data-view="activation">
+      ${renderActivationIcon()}
+      <span>Activation Model</span>
+    </button>
+    <button class="nav-item ${appState.activeView === 'usage' ? 'active' : ''}" data-view="usage">
+      ${renderProductUsageAnalyticsIcon()}
+      <span>Product Usage Analytics</span>
+    </button>
+    <button class="nav-item ${appState.activeView === 'ml' ? 'active' : ''}" data-view="ml">
+      ${renderMlAlgorithmIcon()}
+      <span>Account Scoring Model</span>
+    </button>
+    <button class="nav-item ${appState.activeView === 'causal' ? 'active' : ''}" data-view="causal">
+      ${renderCausalInferenceIcon()}
+      <span>Causal Inference</span>
+    </button>
+  `
+}
+
+function updateMainContent() {
+  const main = document.querySelector<HTMLElement>('.content')
+  if (!main) {
+    return
+  }
+
+  main.innerHTML = renderMainContent()
 }
 
 function renderMainContent(): string {
@@ -124,28 +153,41 @@ function loadViewData() {
   if (appState.activeView === 'activation') {
     bindActivationControls(appState.activationModel, (nextState) => {
       appState.activationModel = nextState
-      renderApp()
+      updateMainContent()
     })
   }
 
-  if (appState.activeView === 'usage' && appState.productUsageAnalytics.status === 'idle') {
+  if (
+    appState.activeView === 'usage' &&
+    (appState.productUsageAnalytics.status === 'idle' || appState.productUsageAnalytics.status === 'error')
+  ) {
     loadProductUsageAnalytics()
   }
 
-  if (appState.activeView === 'ml' && appState.mlAlgorithm.status === 'idle') {
+  if (
+    appState.activeView === 'ml' &&
+    (appState.mlAlgorithm.status === 'idle' || appState.mlAlgorithm.status === 'error')
+  ) {
     loadMlScoring()
+  } else if (appState.activeView === 'ml' && appState.mlAlgorithm.status === 'success') {
+    bindAccountCopilot()
   }
 
-  if (appState.activeView === 'causal' && appState.causalInference.status === 'idle') {
+  if (
+    appState.activeView === 'causal' &&
+    (appState.causalInference.status === 'idle' || appState.causalInference.status === 'error')
+  ) {
     loadCausalInference()
   }
 }
 
 async function loadProductUsageAnalytics() {
-  appState.productUsageAnalytics = {
-    status: 'loading',
+  if (appState.productUsageAnalytics.status === 'loading') {
+    return
   }
-  renderApp()
+
+  appState.productUsageAnalytics = { status: 'loading' }
+  updateMainContent()
 
   try {
     const dashboard = await fetchProductUsageDashboard()
@@ -160,14 +202,18 @@ async function loadProductUsageAnalytics() {
     }
   }
 
-  renderApp()
+  if (appState.activeView === 'usage') {
+    updateMainContent()
+  }
 }
 
 async function loadMlScoring() {
-  appState.mlAlgorithm = {
-    status: 'loading',
+  if (appState.mlAlgorithm.status === 'loading') {
+    return
   }
-  renderApp()
+
+  appState.mlAlgorithm = { status: 'loading' }
+  updateMainContent()
 
   try {
     const dashboard = await fetchMlScoring()
@@ -182,14 +228,19 @@ async function loadMlScoring() {
     }
   }
 
-  renderApp()
+  if (appState.activeView === 'ml') {
+    updateMainContent()
+    bindAccountCopilot()
+  }
 }
 
 async function loadCausalInference() {
-  appState.causalInference = {
-    status: 'loading',
+  if (appState.causalInference.status === 'loading') {
+    return
   }
-  renderApp()
+
+  appState.causalInference = { status: 'loading' }
+  updateMainContent()
 
   try {
     const dashboard = await fetchCausalInference()
@@ -204,20 +255,32 @@ async function loadCausalInference() {
     }
   }
 
-  renderApp()
+  if (appState.activeView === 'causal') {
+    updateMainContent()
+  }
 }
 
 function bindAppEvents() {
-  document.querySelectorAll('[data-view]').forEach((button) => {
-    button.addEventListener('click', () => {
-      appState.activeView = (button as HTMLButtonElement).dataset.view as AppView
-      renderApp()
-    })
+  document.querySelector('.sidebar-nav')?.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>('[data-view]')
+    if (!button?.dataset.view) {
+      return
+    }
+
+    const nextView = button.dataset.view as AppView
+    if (nextView === appState.activeView) {
+      return
+    }
+
+    appState.activeView = nextView
+    renderApp()
   })
 
-  document.querySelector('#open-activation')?.addEventListener('click', () => {
-    appState.activeView = 'activation'
-    renderApp()
+  document.querySelector('#app')?.addEventListener('click', (event) => {
+    if ((event.target as Element).closest('#open-activation')) {
+      appState.activeView = 'activation'
+      renderApp()
+    }
   })
 }
 
