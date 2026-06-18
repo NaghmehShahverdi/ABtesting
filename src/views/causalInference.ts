@@ -1,6 +1,7 @@
 // Director-level readout of early feature adoption causal analysis from
 // causal_inference.ipynb. Results are served from causal_outputs/ CSV
 // artifacts through /api/causal-inference.
+import '../causal-review.css'
 
 type TreatmentSummaryRow = {
   treatment: string
@@ -29,13 +30,22 @@ type CausalEffectRow = {
   treatment: string
   question: string
   accounts: number
+  treated_accounts: number
+  control_accounts: number
   treated_rate: number
   outcome_rate: number
   naive_difference: number
   ipw_ate: number
   aipw_ate: number
+  aipw_standard_error: number
   aipw_ate_common_support: number
+  aipw_common_support_standard_error: number
+  common_support_ci_lower_95: number
+  common_support_ci_upper_95: number
   common_support_rate: number
+  common_support_accounts: number
+  common_support_treated: number
+  common_support_control: number
   ci_lower_95: number
   ci_upper_95: number
   recommendation: string
@@ -98,8 +108,8 @@ const sectionNav = [
   { href: '#ci-home', label: 'Home' },
   { href: '#ci-executive-summary', label: 'Executive Summary' },
   { href: '#ci-treatment-explorer', label: 'Treatment Explorer' },
-  { href: '#ci-segment-insights', label: 'Segment Insights' },
-  { href: '#ci-account-recommendations', label: 'Account Recommendations' },
+  { href: '#ci-segment-insights', label: 'Exploratory Segments' },
+  { href: '#ci-account-recommendations', label: 'Experiment Recruitment' },
   { href: '#ci-causal-validation', label: 'Causal Validation' },
 ]
 
@@ -132,14 +142,17 @@ function getApiBaseUrl(): string {
 
 export function renderCausalInference(state: CausalInferenceState): string {
   return `
-    <section class="page-header">
-      <p class="eyebrow">Causal inference</p>
-      <h1>Which early product behaviors causally move conversion?</h1>
-      <p class="summary">
-        Unlike the Account Scoring Model, which ranks <em>who</em> is likely to convert, this analysis estimates
-        <strong>whether helping similar accounts adopt a feature earlier increases 90-day Won conversion</strong>
-        — using propensity adjustment, doubly robust AIPW, overlap diagnostics, and heterogeneous effects.
-      </p>
+    <section class="page-header ci-page-header">
+      <div class="ci-page-header-glow" aria-hidden="true"></div>
+      <div class="ci-page-header-inner">
+        <p class="ci-page-eyebrow">Causal inference</p>
+        <h1 class="ci-page-title">Which early product behaviors may influence conversion?</h1>
+        <p class="ci-page-summary">
+          Unlike the Account Scoring Model, which ranks <em>who</em> is likely to convert, this analysis estimates
+          <strong>whether comparable accounts that adopt a feature earlier have different 90-day Won outcomes</strong>.
+          The results prioritize experiments; they do not establish rollout-ready causal effects.
+        </p>
+      </div>
     </section>
 
     ${renderBody(state)}
@@ -216,7 +229,7 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
 
       <p class="ml-section-lead">
         Use the layers in the left nav to move from executive readout → treatment comparison → segment heterogeneity →
-        account targeting → validation checks. All estimates come from <code>causal_inference.ipynb</code>.
+        account targeting → validation checks.
       </p>
 
       <div class="metric-grid">
@@ -236,9 +249,9 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
           <p>Won / Closed Won after treatment window closes.</p>
         </article>
         <article class="metric-card ml-highlight">
-          <span>Lead AIPW effect</span>
-          <strong>${lead ? formatPp(lead.aipw_ate) : '—'}</strong>
-          <p>${lead ? treatmentLabel(lead.treatment) : 'Run notebook export'}</p>
+          <span>Experiment hypothesis</span>
+          <strong>${lead ? formatPp(lead.aipw_ate_common_support) : '—'}</strong>
+          <p>${lead ? `${treatmentLabel(lead.treatment)} among comparable accounts` : 'Run notebook export'}</p>
         </article>
       </div>
 
@@ -253,7 +266,7 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
         </div>
         <div class="ml-model-card-item">
           <dt>Estimators</dt>
-          <dd>Naive difference · IPW ATE · Doubly robust AIPW · Bootstrap 95% CI</dd>
+          <dd>Repeated cross-fitting · IPW · Doubly robust AIPW · influence-function 95% CI</dd>
         </div>
         <div class="ml-model-card-item">
           <dt>Confounding control</dt>
@@ -285,6 +298,9 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
 function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard): string {
   const lead = dashboard.leadTreatment
   const brief = dashboard.experimentBrief
+  const intervalCrossesZero = lead
+    ? lead.common_support_ci_lower_95 <= 0 && lead.common_support_ci_upper_95 >= 0
+    : true
 
   return `
     <section class="usage-section" id="ci-executive-summary">
@@ -293,38 +309,49 @@ function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard): str
           <p class="eyebrow">Executive Summary</p>
           <h2>What leadership should take away</h2>
         </div>
-        <span>Observational causal estimate — confirm with experiment</span>
+        <span>Decision status: hypothesis generation, not rollout evidence</span>
+      </div>
+
+      <div class="ci-decision-banner ${intervalCrossesZero ? 'is-inconclusive' : 'is-promising'}">
+        <div>
+          <span>Director readout</span>
+          <strong>${intervalCrossesZero ? 'No treatment has conclusive positive causal evidence yet.' : 'Promising observational evidence; randomized confirmation is still required.'}</strong>
+        </div>
+        <p>
+          Workspace creation is the leading experiment hypothesis because its direction is positive among comparable accounts.
+          The interval still includes zero, so this supports an A/B test—not a broad product rollout or sales claim.
+        </p>
       </div>
 
       <div class="metric-grid">
         <article class="metric-card ml-highlight">
-          <span>Strongest AIPW effect</span>
-          <strong>${lead ? formatPp(lead.aipw_ate) : '—'}</strong>
-          <p>${lead ? treatmentLabel(lead.treatment) : 'No lead treatment identified'} (doubly robust).</p>
+          <span>Primary estimate</span>
+          <strong>${lead ? formatSignedPp(lead.aipw_ate_common_support) : '—'}</strong>
+          <p>${lead ? `${treatmentLabel(lead.treatment)} within common support.` : 'No lead treatment identified'}</p>
         </article>
         <article class="metric-card">
-          <span>95% CI</span>
-          <strong>${lead ? `${formatPp(lead.ci_lower_95)} to ${formatPp(lead.ci_upper_95)}` : '—'}</strong>
-          <p>Bootstrap interval for the lead treatment AIPW ATE.</p>
+          <span>Primary 95% CI</span>
+          <strong>${lead ? `${formatSignedPp(lead.common_support_ci_lower_95)} to ${formatSignedPp(lead.common_support_ci_upper_95)}` : '—'}</strong>
+          <p>${intervalCrossesZero ? 'Includes zero: direction and magnitude remain uncertain.' : 'Excludes zero, pending experimental confirmation.'}</p>
         </article>
         <article class="metric-card">
-          <span>Priority experiment</span>
-          <strong>${brief['Treatment to test'] ? treatmentLabel(String(brief['Treatment to test'])) : '—'}</strong>
-          <p>${brief['Recommended next step'] ?? 'Validate with a targeted experiment.'}</p>
+          <span>Comparable sample</span>
+          <strong>${lead ? formatInteger(lead.common_support_accounts) : '—'}</strong>
+          <p>${lead ? `${formatInteger(lead.common_support_treated)} treated · ${formatInteger(lead.common_support_control)} controls · ${formatPercent(lead.common_support_rate, 1)} of study` : '—'}</p>
         </article>
         <article class="metric-card">
-          <span>Baseline conversion</span>
-          <strong>${lead ? formatPercent(lead.outcome_rate, 1) : '—'}</strong>
-          <p>Overall 90-day Won rate in the study population.</p>
+          <span>Observed outcomes</span>
+          <strong>${lead ? `${formatInteger(lead.treated_accounts)} / ${formatInteger(lead.accounts)}` : '—'}</strong>
+          <p>${lead ? `${formatPercent(lead.treated_rate, 1)} adopted early; baseline conversion was ${formatPercent(lead.outcome_rate, 1)}.` : '—'}</p>
         </article>
       </div>
 
       ${
         lead
           ? `<div class="ci-callout">
-              <h3>Product hypothesis</h3>
-              <p>${lead.product_hypothesis}</p>
-              <p class="ci-callout-note"><strong>Naive vs adjusted:</strong> raw treated-control gap was ${formatSignedPp(lead.naive_difference)}; after confounding adjustment AIPW ATE is ${formatSignedPp(lead.aipw_ate)}. ${Math.sign(lead.naive_difference) !== Math.sign(lead.aipw_ate) ? 'Direction changed after adjustment — naive comparisons are misleading here.' : ''}</p>
+              <h3>Recommended decision</h3>
+              <p><strong>Run a controlled workspace-onboarding experiment.</strong> ${lead.product_hypothesis}</p>
+              <p class="ci-callout-note"><strong>Why this is not a rollout recommendation:</strong> the raw gap is ${formatSignedPp(lead.naive_difference)}, the full-population sensitivity estimate is ${formatSignedPp(lead.aipw_ate)} (${formatSignedPp(lead.ci_lower_95)} to ${formatSignedPp(lead.ci_upper_95)}), and only ${formatPercent(lead.common_support_rate, 1)} of accounts have adequate treated/control comparability.</p>
             </div>`
           : ''
       }
@@ -333,10 +360,12 @@ function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard): str
         ${[
           { label: 'Treatment to test', value: brief['Treatment to test'] ? treatmentLabel(String(brief['Treatment to test'])) : '—' },
           { label: 'Why this treatment', value: brief['Why this treatment'] ?? '—' },
-          { label: 'Estimated AIPW effect', value: brief['Estimated AIPW effect'] ? formatPp(Number(brief['Estimated AIPW effect'])) : '—' },
-          { label: 'Business outcome', value: brief['Business outcome'] ?? '90-day Won / Closed Won conversion' },
+          { label: 'Common-support effect', value: brief['Estimated AIPW effect'] ? formatSignedPp(Number(brief['Estimated AIPW effect'])) : '—' },
+          { label: 'Common-support 95% CI', value: brief['95% CI in common support'] ? formatStoredInterval(brief['95% CI in common support']) : '—' },
+          { label: 'Comparable population', value: brief['Common support'] ?? '—' },
           { label: 'Recommended next step', value: brief['Recommended next step'] ?? 'Run targeted experiment' },
-          { label: 'Primary experimental outcome', value: brief['Primary experimental outcome'] ?? 'Feature adoption within treatment window' },
+          { label: 'Primary proximal outcome', value: brief['Primary proximal outcome'] ?? 'Feature adoption within treatment window' },
+          { label: 'Primary business outcome', value: brief['Primary business outcome'] ?? '90-day Won / Closed Won conversion' },
         ]
           .map(
             (item) => `
@@ -364,7 +393,8 @@ function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): st
       </div>
 
       <p class="ml-section-lead">
-        Each row is one product adoption treatment. AIPW is the primary estimate; cross-check overlap in Causal Validation before acting.
+        The common-support AIPW estimate is the primary decision number because it focuses on accounts with credible
+        treated and control analogues. The full-population estimate is retained as a sensitivity analysis.
       </p>
 
       <div class="table-card ml-table-scroll">
@@ -372,13 +402,13 @@ function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): st
           <thead>
             <tr>
               <th>Treatment</th>
-              <th>Treated rate</th>
+              <th>Treated n</th>
               <th>Naive Δ</th>
-              <th>IPW ATE</th>
-              <th>AIPW ATE</th>
-              <th>95% CI</th>
+              <th>Support AIPW</th>
+              <th>Support 95% CI</th>
+              <th>Full AIPW sensitivity</th>
               <th>Overlap</th>
-              <th>Recommendation</th>
+              <th>Evidence status</th>
             </tr>
           </thead>
           <tbody>
@@ -390,13 +420,13 @@ function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): st
                   <strong>${treatmentLabel(row.treatment)}</strong>
                   <span class="ml-priority-meta">${row.question}</span>
                 </td>
-                <td>${formatPercent(row.treated_rate, 1)}</td>
+                <td>${formatInteger(row.treated_accounts)}</td>
                 <td>${formatSignedPp(row.naive_difference)}</td>
-                <td>${formatSignedPp(row.ipw_ate)}</td>
-                <td><strong>${formatSignedPp(row.aipw_ate)}</strong></td>
-                <td>${formatSignedPp(row.ci_lower_95)} to ${formatSignedPp(row.ci_upper_95)}</td>
+                <td><strong>${formatSignedPp(row.aipw_ate_common_support)}</strong></td>
+                <td>${formatSignedPp(row.common_support_ci_lower_95)} to ${formatSignedPp(row.common_support_ci_upper_95)}</td>
+                <td>${formatSignedPp(row.aipw_ate)}</td>
                 <td>${overlapBadge(row.common_support_rate)}</td>
-                <td>${row.recommendation}</td>
+                <td>${evidenceBadge(row)}</td>
               </tr>
             `,
               )
@@ -440,15 +470,15 @@ function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard): stri
     <section class="usage-section" id="ci-segment-insights">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Segment Insights</p>
-          <h2>Where the effect is strongest</h2>
+          <p class="eyebrow">Exploratory Segments</p>
+          <h2>Signals to stratify in the experiment</h2>
         </div>
         <span>Conditional average treatment effects (CATE)</span>
       </div>
 
       <p class="ml-section-lead">
-        Segments with higher average CATE are better candidates for targeted product interventions —
-        not just accounts with high propensity to adopt.
+        These are model-generated heterogeneity signals without segment-level confidence intervals or
+        multiple-comparison correction. Use them to pre-specify experimental strata—not to launch segmented rollouts.
       </p>
 
       <div class="table-card ml-table-scroll">
@@ -506,15 +536,16 @@ function renderAccountRecommendationsSection(dashboard: CausalInferenceDashboard
     <section class="usage-section" id="ci-account-recommendations">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Account Recommendations</p>
-          <h2>Who to target for each treatment</h2>
+          <p class="eyebrow">Experiment Recruitment</p>
+          <h2>Exploratory candidates for a controlled test</h2>
         </div>
-        <span>Top accounts by estimated CATE</span>
+        <span>Do not operationalize as a sales call list</span>
       </div>
 
       <p class="ml-section-lead">
-        These accounts have the highest predicted uplift if encouraged to adopt the treatment early.
-        Pair with Account Scoring Model rankings for a full GTM workflow.
+        These rankings are useful for recruiting a diverse experimental cohort inside common support.
+        Individual uplift values are unstable point predictions with no account-level confidence intervals;
+        they are not expected conversion gains and should not be shown to Sales as promises.
       </p>
 
       <div class="table-card ml-table-scroll">
@@ -523,7 +554,7 @@ function renderAccountRecommendationsSection(dashboard: CausalInferenceDashboard
             <tr>
               <th>Account</th>
               <th>Treatment</th>
-              <th>Est. uplift</th>
+              <th>Model uplift signal</th>
               <th>P(treat)</th>
               <th>P(control)</th>
               <th>Reliability</th>
@@ -586,19 +617,20 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
           </thead>
           <tbody>
             ${dashboard.diagnostics
-              .map(
-                (row) => `
+              .map((row) => {
+                const effect = dashboard.causalEffects.find((item) => item.treatment === row.treatment)
+                return `
               <tr>
                 <td><strong>${treatmentLabel(row.treatment)}</strong></td>
                 <td>${formatInteger(row.treated_accounts)}</td>
                 <td>${formatInteger(row.control_accounts)}</td>
                 <td>${formatSignedPp(row.naive_difference)}</td>
                 <td>${row.cross_fitted_propensity_auc.toFixed(2)}</td>
-                <td>${overlapBadge(row.common_support_rate)}</td>
+                <td>${overlapBadge(effect?.common_support_rate ?? row.common_support_rate)}</td>
                 <td>${formatPercent(row.treated_below_0_05, 0)} treated &lt;0.05 · ${formatPercent(row.control_below_0_05, 0)} control &lt;0.05</td>
               </tr>
-            `,
-              )
+            `
+              })
               .join('')}
           </tbody>
         </table>
@@ -607,7 +639,8 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
       <div class="insight-card ml-action-card">
         <ul class="ml-action-list">
           <li>Causal estimates suggest <em>where to experiment</em>; only randomized tests confirm incremental impact.</li>
-          <li>Design holdouts or geo splits for the recommended treatment before rolling out globally.</li>
+          <li>Randomize eligible accounts to guided workspace onboarding versus the existing experience.</li>
+          <li>Track workspace adoption as the proximal outcome and 90-day Won conversion as the business outcome.</li>
           <li>Estimates assume no unobserved confounding after pre-treatment adjustment and sufficient overlap.</li>
           <li>Deal <code>created_date</code> is used as proxy for close timing — replace with true stage transitions in production.</li>
         </ul>
@@ -637,6 +670,27 @@ function overlapBadge(rate: number): string {
     return `<span class="ci-overlap ci-overlap-moderate">${formatPercent(rate, 0)} support</span>`
   }
   return `<span class="ci-overlap ci-overlap-poor">${formatPercent(rate, 0)} support</span>`
+}
+
+function evidenceBadge(row: CausalEffectRow): string {
+  if (row.common_support_rate < 0.25 || row.common_support_treated < 20) {
+    return '<span class="ci-evidence ci-evidence-poor">Insufficient data</span>'
+  }
+  if (row.common_support_ci_lower_95 > 0) {
+    return '<span class="ci-evidence ci-evidence-good">Promising</span>'
+  }
+  if (row.common_support_ci_upper_95 < 0) {
+    return '<span class="ci-evidence ci-evidence-negative">Negative signal</span>'
+  }
+  return '<span class="ci-evidence ci-evidence-mixed">Inconclusive</span>'
+}
+
+function formatStoredInterval(value: string): string {
+  const [lower, upper] = value.split(' to ').map(Number)
+  if (!Number.isFinite(lower) || !Number.isFinite(upper)) {
+    return value
+  }
+  return `${formatSignedPp(lower)} to ${formatSignedPp(upper)}`
 }
 
 function formatPercent(value: number, digits = 0): string {

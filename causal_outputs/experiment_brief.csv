@@ -1,7 +1,9 @@
 field,recommendation
-Treatment to test,report_generated_7d
-Why this treatment,"Reduce time-to-first-report; test report templates, sample data, and in-app prompts."
-Estimated AIPW effect,0.1276
-Recommended next step,Run targeted experiment
-Primary experimental outcome,Feature adoption within treatment window
-Business outcome,90-day Won / Closed Won conversion
+Treatment to test,workspace_created_7d
+Why this treatment,Improve onboarding toward workspace creation; test guided setup and workspace templates.
+Estimated AIPW effect,0.1103
+95% CI in common support,-0.0288 to 0.2494
+Common support,37.8%
+Recommended next step,Exploratory experiment only — interval includes zero
+Primary proximal outcome,Feature adoption within treatment window
+Primary business outcome,90-day Won / Closed Won conversion

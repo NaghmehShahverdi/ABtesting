@@ -799,8 +799,14 @@ export function getCausalInferenceDashboard() {
     experimentBriefRows.map((row) => [row.field, row.recommendation]),
   )
 
-  const sortedEffects = [...causalEffects].sort((a, b) => b.aipw_ate - a.aipw_ate)
-  const leadTreatment = sortedEffects[0] ?? null
+  const sortedEffects = [...causalEffects].sort(
+    (a, b) => b.aipw_ate_common_support - a.aipw_ate_common_support,
+  )
+  const recommendedTreatment = experimentBrief['Treatment to test']
+  const leadTreatment =
+    causalEffects.find((row) => row.treatment === recommendedTreatment) ??
+    sortedEffects[0] ??
+    null
 
   return {
     meta: {

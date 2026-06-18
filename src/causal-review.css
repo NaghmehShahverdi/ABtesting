@@ -1,0 +1,69 @@
+.ci-decision-banner {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.75fr) minmax(0, 1.25fr);
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 16px;
+}
+
+.ci-decision-banner.is-inconclusive {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.ci-decision-banner.is-promising {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.ci-decision-banner span {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: #92400e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ci-decision-banner strong {
+  color: #78350f;
+  line-height: 1.4;
+}
+
+.ci-decision-banner p {
+  color: #854d0e;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.ci-evidence {
+  display: inline-block;
+  padding: 0.28rem 0.55rem;
+  white-space: nowrap;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.ci-evidence-good {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.ci-evidence-mixed {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.ci-evidence-poor,
+.ci-evidence-negative {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+@media (max-width: 700px) {
+  .ci-decision-banner {
+    grid-template-columns: 1fr;
+  }
+}
