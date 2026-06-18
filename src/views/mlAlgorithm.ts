@@ -318,12 +318,12 @@ function renderBody(state: MlAlgorithmState): string {
   return `
     <div class="ml-page">
       ${renderHeadlineSection(dashboard)}
+      ${renderAccountCopilot()}
       ${renderHowItWorksSection(dashboard)}
       ${renderLiftSection(dashboard)}
       ${renderLeaderboardSection(dashboard)}
       ${renderDriversSection(dashboard)}
       ${renderAccountExplanationsSection(dashboard)}
-      ${renderAccountCopilot()}
       ${renderActionSection()}
     </div>
   `
@@ -842,10 +842,10 @@ function renderAccountCopilot(): string {
         `
 
   return `
-    <section class="usage-section ml-copilot">
+    <section class="usage-section ml-copilot" id="account-scoring-copilot">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">AI assistant</p>
+          <p class="eyebrow">New · AI assistant</p>
           <h2>Ask the Account Scoring Copilot</h2>
         </div>
         <span>Grounded in current Snowflake scoring results</span>

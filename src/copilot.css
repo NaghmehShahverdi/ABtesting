@@ -12,10 +12,10 @@
 
 .ml-copilot-panel {
   padding: 1rem;
-  background: #fff;
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  border: 1px solid #bfdbfe;
   border-radius: 16px;
-  box-shadow: 0 14px 34px #0f172a0f;
+  box-shadow: 0 18px 42px #2563eb1a;
 }
 
 .ml-copilot-messages {
