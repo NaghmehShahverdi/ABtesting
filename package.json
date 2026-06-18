@@ -1,0 +1,25 @@
+{
+  "name": "abtesting",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "node server/server.mjs",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "snowflake:test": "node test-snowflake.mjs",
+    "deploy": "npm run build && gh-pages -d dist"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "snowflake-sdk": "^2.4.3"
+  }
+}

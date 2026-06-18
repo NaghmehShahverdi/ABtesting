@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: abtesting-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: FRONTEND_ORIGINS
+        value: https://naghmehshahverdi.github.io
+      - key: SNOWFLAKE_ACCOUNT
+        sync: false
+      - key: SNOWFLAKE_USERNAME
+        sync: false
+      - key: SNOWFLAKE_WAREHOUSE
+        sync: false
+      - key: SNOWFLAKE_DATABASE
+        sync: false
+      - key: SNOWFLAKE_SCHEMA
+        sync: false
+      - key: SNOWFLAKE_ROLE
+        sync: false
+      - key: SNOWFLAKE_PRIVATE_KEY_BASE64
+        sync: false
