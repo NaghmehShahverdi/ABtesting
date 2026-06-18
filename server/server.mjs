@@ -63,7 +63,7 @@ app.get('/api/ml-scoring', (_request, response) => {
     'X-Data-Source': mlCacheSource,
   })
   response.json(mlScoringCache)
-  void refreshMlScoringCache()
+  setTimeout(() => void refreshMlScoringCache(), 1_000).unref()
 })
 
 app.get('/api/causal-inference', async (_request, response) => {
