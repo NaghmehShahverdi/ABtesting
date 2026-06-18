@@ -31,22 +31,37 @@
 
 .ml-selection-evidence {
   margin-top: 1rem;
-  padding: 1rem;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 14px;
+  overflow: hidden;
 }
 
-.ml-selection-evidence-heading {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1fr);
+.ml-selection-evidence summary {
+  display: flex;
+  justify-content: space-between;
   gap: 1rem;
-  align-items: end;
-  padding-bottom: 0.9rem;
-  border-bottom: 1px solid #dbe4ee;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  transition: background 160ms ease;
 }
 
-.ml-selection-evidence-heading span {
+.ml-selection-evidence summary::-webkit-details-marker {
+  display: none;
+}
+
+.ml-selection-evidence summary:hover {
+  background: #f1f5f9;
+}
+
+.ml-selection-evidence summary:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: -3px;
+}
+
+.ml-selection-evidence summary small {
   display: block;
   margin-bottom: 0.2rem;
   color: #475569;
@@ -56,17 +71,43 @@
   text-transform: uppercase;
 }
 
-.ml-selection-evidence-heading h4 {
+.ml-selection-evidence summary strong {
+  display: block;
   color: #0f172a;
-  font-size: 1rem;
+  font-size: 0.92rem;
 }
 
-.ml-selection-evidence-heading p,
+.ml-selection-evidence-action {
+  flex: 0 0 auto;
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.ml-selection-evidence-action::after {
+  content: " +";
+}
+
+.ml-selection-evidence[open] .ml-selection-evidence-action::after {
+  content: " −";
+}
+
+.ml-selection-evidence-body {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid #dbe4ee;
+}
+
+.ml-selection-evidence-intro,
 .ml-selection-evidence-grid p,
 .ml-selection-holdout-note {
   color: #475569;
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.ml-selection-evidence-intro {
+  max-width: 850px;
+  padding-top: 0.9rem;
 }
 
 .ml-selection-evidence-grid {
@@ -101,8 +142,11 @@
 
 @media (max-width: 720px) {
   .ml-selection-status,
-  .ml-selection-evidence-heading,
   .ml-selection-evidence-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ml-selection-evidence summary {
+    align-items: flex-start;
   }
 }

@@ -643,54 +643,57 @@ function renderSelectionCallout(
           )
           .join('')}
       </div>
-      <div class="ml-selection-evidence">
-        <div class="ml-selection-evidence-heading">
-          <div>
-            <span>Required before changing the champion</span>
-            <h4>Quantify uncertainty and test stability</h4>
-          </div>
-          <p>
+      <details class="ml-selection-evidence">
+        <summary>
+          <span>
+            <small>Required before changing the champion</small>
+            <strong>Review the uncertainty and stability framework</strong>
+          </span>
+          <span class="ml-selection-evidence-action">Read methodology</span>
+        </summary>
+        <div class="ml-selection-evidence-body">
+          <p class="ml-selection-evidence-intro">
             The observed ${formatPp(testRevenueGap)} test advantage is practically meaningful
             (${formatPercent(relativeTestRevenueGain)} relative improvement), but a point estimate alone does not establish
             statistical significance.
           </p>
+          <div class="ml-selection-evidence-grid">
+            <article>
+              <strong>1. Paired cluster bootstrap</strong>
+              <p>
+                Run 10,000 resamples at the account level, keeping all snapshots for each sampled account and evaluating both
+                models on identical resamples. Recalculate top-10% revenue capture and the
+                ${revenueLeader}&minus;${deployed} difference each time.
+              </p>
+            </article>
+            <article>
+              <strong>2. Report decision uncertainty</strong>
+              <p>
+                Publish the 95% confidence interval for the capture difference and the bootstrap probability that
+                ${revenueLeader} beats ${deployed}. AUC intervals do not answer uncertainty in the primary business metric.
+              </p>
+            </article>
+            <article>
+              <strong>3. Challenge result stability</strong>
+              <p>
+                Compare monthly and rolling temporal backtests, top-ranked account overlap, and performance at top 5%, 10%,
+                15%, and fixed Sales capacities. Repeat after removing or winsorizing unusually large deals.
+              </p>
+            </article>
+            <article>
+              <strong>4. Use a promotion rule</strong>
+              <p>
+                Promote only if the interval is above zero and the challenger wins consistently across time and capacity.
+                If the interval crosses zero or a few deals drive the gain, retain ${deployed} and continue monitoring.
+              </p>
+            </article>
+          </div>
+          <p class="ml-selection-holdout-note">
+            <strong>Governance note:</strong> this test period has now informed model comparison. Any champion change should
+            therefore be confirmed on a new future holdout before production promotion.
+          </p>
         </div>
-        <div class="ml-selection-evidence-grid">
-          <article>
-            <strong>1. Paired cluster bootstrap</strong>
-            <p>
-              Run 10,000 resamples at the account level, keeping all snapshots for each sampled account and evaluating both
-              models on identical resamples. Recalculate top-10% revenue capture and the
-              ${revenueLeader}&minus;${deployed} difference each time.
-            </p>
-          </article>
-          <article>
-            <strong>2. Report decision uncertainty</strong>
-            <p>
-              Publish the 95% confidence interval for the capture difference and the bootstrap probability that
-              ${revenueLeader} beats ${deployed}. AUC intervals do not answer uncertainty in the primary business metric.
-            </p>
-          </article>
-          <article>
-            <strong>3. Challenge result stability</strong>
-            <p>
-              Compare monthly and rolling temporal backtests, top-ranked account overlap, and performance at top 5%, 10%,
-              15%, and fixed Sales capacities. Repeat after removing or winsorizing unusually large deals.
-            </p>
-          </article>
-          <article>
-            <strong>4. Use a promotion rule</strong>
-            <p>
-              Promote only if the interval is above zero and the challenger wins consistently across time and capacity.
-              If the interval crosses zero or a few deals drive the gain, retain ${deployed} and continue monitoring.
-            </p>
-          </article>
-        </div>
-        <p class="ml-selection-holdout-note">
-          <strong>Governance note:</strong> this test period has now informed model comparison. Any champion change should
-          therefore be confirmed on a new future holdout before production promotion.
-        </p>
-      </div>
+      </details>
     </div>
   `
 }
