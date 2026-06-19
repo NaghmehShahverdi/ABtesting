@@ -116,4 +116,4 @@ The expected environment variables are documented in [`.env.example`](.env.examp
 
 ---
 
-Built by **Naghmeh Shahverdi** as a practical demonstration of senior-level data science: defining the decision, building the evidence, communicating uncertainty, and creating a path from analysis to action.
+Built by **Naghmeh Shahverdizadeh** 
