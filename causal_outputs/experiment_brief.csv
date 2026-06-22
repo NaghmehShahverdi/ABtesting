@@ -1,9 +1,9 @@
 field,recommendation
 Treatment to test,workspace_created_7d
 Why this treatment,Improve onboarding toward workspace creation; test guided setup and workspace templates.
-Estimated AIPW effect,0.1103
-95% CI in common support,-0.0288 to 0.2494
-Common support,37.8%
+Estimated AIPW effect,0.0170
+95% CI in common support,-0.0190 to 0.0530
+Common support,95.6%
 Recommended next step,Exploratory experiment only — interval includes zero
 Primary proximal outcome,Feature adoption within treatment window
 Primary business outcome,90-day Won / Closed Won conversion

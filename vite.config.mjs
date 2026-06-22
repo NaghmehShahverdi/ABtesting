@@ -581,11 +581,15 @@ export function getCausalInferenceDashboard() {
     sortedEffects[0] ??
     null
 
+  const windowDaysList = treatmentSummary.map((row) => row.window_days)
+
   return {
     meta: {
       accountsStudied: treatmentSummary[0]?.accounts ?? 0,
       treatmentsTested: causalEffects.length,
       outcomeWindowDays: 90,
+      treatmentWindowMin: windowDaysList.length ? Math.min(...windowDaysList) : 0,
+      treatmentWindowMax: windowDaysList.length ? Math.max(...windowDaysList) : 0,
       sourceNotebook: 'causal_inference.ipynb',
       outputDir: 'causal_outputs/',
     },

@@ -104,13 +104,6 @@ export type CausalInferenceState = {
   status: 'idle' | 'loading' | 'success' | 'error'
 }
 
-const treatmentLabels: Record<string, string> = {
-  workspace_created_7d: 'Workspace created (7d)',
-  report_generated_7d: 'Report generated (7d)',
-  workflow_created_14d: 'Workflow created (14d)',
-  api_call_made_14d: 'API call made (14d)',
-}
-
 const sectionNav = [
   { href: '#ci-home', label: 'Home' },
   { href: '#ci-executive-summary', label: 'Executive Summary' },
@@ -119,6 +112,73 @@ const sectionNav = [
   { href: '#ci-account-recommendations', label: 'Experiment Recruitment' },
   { href: '#ci-causal-validation', label: 'Causal Validation' },
 ]
+
+type TreatmentContext = {
+  label: (key: string) => string
+  windowDays: (key: string) => number | undefined
+  supportRate: (key: string) => number
+  windowRangeLabel: string
+}
+
+function createTreatmentContext(dashboard: CausalInferenceDashboard): TreatmentContext {
+  const summaryByTreatment = new Map(
+    dashboard.treatmentSummary.map((row) => [row.treatment, row]),
+  )
+  const effectByTreatment = new Map(
+    dashboard.causalEffects.map((row) => [row.treatment, row]),
+  )
+  const diagnosticByTreatment = new Map(
+    dashboard.diagnostics.map((row) => [row.treatment, row]),
+  )
+  const windowDaysList = dashboard.treatmentSummary.map((row) => row.window_days)
+
+  return {
+    label: (key: string) => {
+      const row = summaryByTreatment.get(key)
+      if (!row) {
+        return key.replace(/_/g, ' ')
+      }
+
+      return `${formatEventName(row.event)} (${row.window_days}d window)`
+    },
+    windowDays: (key: string) => summaryByTreatment.get(key)?.window_days,
+    supportRate: (key: string) =>
+      effectByTreatment.get(key)?.common_support_rate ??
+      diagnosticByTreatment.get(key)?.common_support_rate ??
+      0,
+    windowRangeLabel:
+      windowDaysList.length === 0
+        ? '—'
+        : windowDaysList.length === 1
+          ? `${windowDaysList[0]} days`
+          : `${Math.min(...windowDaysList)}–${Math.max(...windowDaysList)} days`,
+  }
+}
+
+function formatEventName(event: string): string {
+  return event
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function windowTuningNote(windowDays: number, supportRate: number): string {
+  if (windowDays === 14 && supportRate >= 0.9) {
+    return 'Kept at 14 days — overlap was already strong.'
+  }
+
+  if (windowDays === 30) {
+    return 'Extended to 30 days (from 7) to improve treated/control overlap.'
+  }
+
+  if (windowDays === 90) {
+    return supportRate >= 0.7
+      ? 'Extended to 90 days (from 14) to improve overlap.'
+      : 'Extended to 90 days (from 14); overlap remains moderate — interpret cautiously.'
+  }
+
+  return `${windowDays}-day adoption window after first login.`
+}
 
 export async function fetchCausalInference(): Promise<CausalInferenceDashboard> {
   const response = await fetch(`${getApiBaseUrl()}/api/causal-inference`, {
@@ -186,13 +246,15 @@ function renderBody(state: CausalInferenceState): string {
     )
   }
 
+  const ctx = createTreatmentContext(dashboard)
+
   return renderDashboardShell(`
-    ${renderHomeSection(dashboard)}
-    ${renderExecutiveSummarySection(dashboard)}
-    ${renderTreatmentExplorerSection(dashboard)}
-    ${renderSegmentInsightsSection(dashboard)}
-    ${renderAccountRecommendationsSection(dashboard)}
-    ${renderCausalValidationSection(dashboard)}
+    ${renderHomeSection(dashboard, ctx)}
+    ${renderExecutiveSummarySection(dashboard, ctx)}
+    ${renderTreatmentExplorerSection(dashboard, ctx)}
+    ${renderSegmentInsightsSection(dashboard, ctx)}
+    ${renderAccountRecommendationsSection(dashboard, ctx)}
+    ${renderCausalValidationSection(dashboard, ctx)}
   `)
 }
 
@@ -221,7 +283,7 @@ function renderStatus(title: string, detail: string, isError = false): string {
   `
 }
 
-function renderHomeSection(dashboard: CausalInferenceDashboard): string {
+function renderHomeSection(dashboard: CausalInferenceDashboard, ctx: TreatmentContext): string {
   const lead = dashboard.leadTreatment
 
   return `
@@ -236,7 +298,7 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
 
       <p class="ml-section-lead">
         Use the layers in the left nav to move from executive readout → treatment comparison → segment heterogeneity →
-        account targeting → validation checks.
+        account targeting → validation checks. Adoption windows were tuned per treatment when shorter windows showed poor overlap.
       </p>
 
       <div class="metric-grid">
@@ -246,20 +308,59 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
           <p>Unit of analysis: account at first login.</p>
         </article>
         <article class="metric-card">
-          <span>Treatments tested</span>
-          <strong>${dashboard.meta.treatmentsTested}</strong>
-          <p>Early feature adoption windows (7–14 days).</p>
+          <span>Adoption windows</span>
+          <strong>${ctx.windowRangeLabel}</strong>
+          <p>Per-treatment windows (${dashboard.treatmentSummary.map((row) => `${formatEventName(row.event).split(' ')[0]} ${row.window_days}d`).join(' · ')}).</p>
         </article>
         <article class="metric-card">
           <span>Outcome horizon</span>
           <strong>${dashboard.meta.outcomeWindowDays} days</strong>
-          <p>Won / Closed Won after treatment window closes.</p>
+          <p>Won / Closed Won after each treatment window closes.</p>
         </article>
         <article class="metric-card ml-highlight">
           <span>Experiment hypothesis</span>
           <strong>${lead ? formatPp(lead.aipw_ate_common_support) : '—'}</strong>
-          <p>${lead ? `${treatmentLabel(lead.treatment)} among comparable accounts` : 'Run notebook export'}</p>
+          <p>${lead ? `${ctx.label(lead.treatment)} among comparable accounts` : 'Run notebook export'}</p>
         </article>
+      </div>
+
+      <div class="ci-window-panel">
+        <div class="ci-window-panel-copy">
+          <span>Window tuning</span>
+          <h3>Why adoption windows differ by treatment</h3>
+          <p>
+            The first notebook pass used 7–14 day windows. Overlap was weak for most behaviors, so windows were extended
+            treatment-by-treatment until common support improved. API usage kept a <strong>14-day</strong> window;
+            workspace and report were widened to <strong>30 days</strong>; workflow was widened to <strong>90 days</strong>.
+          </p>
+        </div>
+        <div class="table-card ml-table-scroll">
+          <table class="ml-metrics-table ci-window-table">
+            <thead>
+              <tr>
+                <th>Treatment</th>
+                <th>Adoption window</th>
+                <th>Common support</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${dashboard.treatmentSummary
+                .map((row) => {
+                  const supportRate = ctx.supportRate(row.treatment)
+                  return `
+                <tr>
+                  <td><strong>${ctx.label(row.treatment)}</strong></td>
+                  <td>${row.window_days} days</td>
+                  <td>${overlapBadge(supportRate)}</td>
+                  <td>${windowTuningNote(row.window_days, supportRate)}</td>
+                </tr>
+              `
+                })
+                .join('')}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <dl class="ml-model-card ci-method-card">
@@ -290,9 +391,9 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
           .map(
             (row) => `
           <article class="ci-treatment-preview-card">
-            <span>${treatmentLabel(row.treatment)}</span>
+            <span>${ctx.label(row.treatment)}</span>
             <strong>${formatPercent(row.treated_rate, 1)}</strong>
-            <p>${formatInteger(Math.round(row.accounts * row.treated_rate))} treated · ${formatPercent(row.treated_outcome_rate, 1)} treated conversion</p>
+            <p>${overlapBadge(ctx.supportRate(row.treatment))} · ${formatInteger(Math.round(row.accounts * row.treated_rate))} treated</p>
           </article>
         `,
           )
@@ -302,7 +403,7 @@ function renderHomeSection(dashboard: CausalInferenceDashboard): string {
   `
 }
 
-function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard): string {
+function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard, ctx: TreatmentContext): string {
   const lead = dashboard.leadTreatment
   const brief = dashboard.experimentBrief
   const intervalCrossesZero = lead
@@ -334,7 +435,7 @@ function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard): str
         <article class="metric-card ml-highlight">
           <span>Primary estimate</span>
           <strong>${lead ? formatSignedPp(lead.aipw_ate_common_support) : '—'}</strong>
-          <p>${lead ? `${treatmentLabel(lead.treatment)} within common support.` : 'No lead treatment identified'}</p>
+          <p>${lead ? `${ctx.label(lead.treatment)} within common support.` : 'No lead treatment identified'}</p>
         </article>
         <article class="metric-card">
           <span>Primary 95% CI</span>
@@ -365,7 +466,7 @@ function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard): str
 
       <div class="ci-experiment-grid">
         ${[
-          { label: 'Treatment to test', value: brief['Treatment to test'] ? treatmentLabel(String(brief['Treatment to test'])) : '—' },
+          { label: 'Treatment to test', value: brief['Treatment to test'] ? ctx.label(String(brief['Treatment to test'])) : '—' },
           { label: 'Why this treatment', value: brief['Why this treatment'] ?? '—' },
           { label: 'Common-support effect', value: brief['Estimated AIPW effect'] ? formatSignedPp(Number(brief['Estimated AIPW effect'])) : '—' },
           { label: 'Common-support 95% CI', value: brief['95% CI in common support'] ? formatStoredInterval(brief['95% CI in common support']) : '—' },
@@ -388,7 +489,7 @@ function renderExecutiveSummarySection(dashboard: CausalInferenceDashboard): str
   `
 }
 
-function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): string {
+function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard, ctx: TreatmentContext): string {
   return `
     <section class="usage-section" id="ci-treatment-explorer">
       <div class="section-heading">
@@ -409,6 +510,7 @@ function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): st
           <thead>
             <tr>
               <th>Treatment</th>
+              <th>Window</th>
               <th>Treated n</th>
               <th>Naive Δ</th>
               <th>Support AIPW</th>
@@ -424,9 +526,10 @@ function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): st
                 (row) => `
               <tr class="${dashboard.leadTreatment?.treatment === row.treatment ? 'ml-row-deployed' : ''}">
                 <td>
-                  <strong>${treatmentLabel(row.treatment)}</strong>
+                  <strong>${ctx.label(row.treatment)}</strong>
                   <span class="ml-priority-meta">${row.question}</span>
                 </td>
+                <td>${ctx.windowDays(row.treatment) ?? '—'}d</td>
                 <td>${formatInteger(row.treated_accounts)}</td>
                 <td>${formatSignedPp(row.naive_difference)}</td>
                 <td><strong>${formatSignedPp(row.aipw_ate_common_support)}</strong></td>
@@ -447,7 +550,7 @@ function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): st
           .map(
             (row) => `
           <article class="ci-hypothesis-card">
-            <h3>${treatmentLabel(row.treatment)}</h3>
+            <h3>${ctx.label(row.treatment)}</h3>
             <p>${row.product_hypothesis}</p>
           </article>
         `,
@@ -458,7 +561,7 @@ function renderTreatmentExplorerSection(dashboard: CausalInferenceDashboard): st
   `
 }
 
-function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard): string {
+function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard, ctx: TreatmentContext): string {
   if (dashboard.heterogeneousEffects.length === 0) {
     return `
       <section class="usage-section" id="ci-segment-insights">
@@ -517,7 +620,7 @@ function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard): stri
               .map(
                 (row) => `
               <tr>
-                <td>${treatmentLabel(row.treatment)}</td>
+                <td>${ctx.label(row.treatment)}</td>
                 <td>${formatSegmentType(row.segment_type)}</td>
                 <td><strong>${row.segment_value}</strong></td>
                 <td>
@@ -539,7 +642,7 @@ function renderSegmentInsightsSection(dashboard: CausalInferenceDashboard): stri
   `
 }
 
-function renderAccountRecommendationsSection(dashboard: CausalInferenceDashboard): string {
+function renderAccountRecommendationsSection(dashboard: CausalInferenceDashboard, ctx: TreatmentContext): string {
   if (dashboard.interventionCandidates.length === 0) {
     return `
       <section class="usage-section" id="ci-account-recommendations">
@@ -619,7 +722,7 @@ function renderAccountRecommendationsSection(dashboard: CausalInferenceDashboard
                   <strong>${row.account_name}</strong>
                   <span class="ml-priority-meta">${row.industry} · ${row.segment} · ${formatCurrency(row.estimated_annual_recurring_revenue)} ARR</span>
                 </td>
-                <td>${treatmentLabel(row.treatment_name)}</td>
+                <td>${ctx.label(row.treatment_name)}</td>
                 <td>${formatPercent(row.predicted_conversion_if_treated, 0)}</td>
                 <td>${formatPercent(row.predicted_conversion_if_control, 0)}</td>
                 <td><span class="ml-action-tag">${row.probability_reliability}</span></td>
@@ -634,7 +737,7 @@ function renderAccountRecommendationsSection(dashboard: CausalInferenceDashboard
   `
 }
 
-function renderCausalValidationSection(dashboard: CausalInferenceDashboard): string {
+function renderCausalValidationSection(dashboard: CausalInferenceDashboard, ctx: TreatmentContext): string {
   return `
     <section class="usage-section" id="ci-causal-validation">
       <div class="section-heading">
@@ -646,8 +749,8 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
       </div>
 
       <p class="ml-section-lead">
-        Causal estimates are only credible when treated and control accounts have comparable propensity scores.
-        Low common support means the estimate may not generalize to the full population.
+        Shorter windows had poor overlap for most treatments, so adoption windows were extended per behavior (30d, 90d)
+        while API usage kept a 14-day window. Estimates below use the tuned window for each treatment.
       </p>
 
       <div class="ci-propensity-explainer">
@@ -693,6 +796,7 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
           <thead>
             <tr>
               <th>Treatment</th>
+              <th>Window</th>
               <th>Treated n</th>
               <th>Control n</th>
               <th>Naive Δ</th>
@@ -707,7 +811,8 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
                 const effect = dashboard.causalEffects.find((item) => item.treatment === row.treatment)
                 return `
               <tr>
-                <td><strong>${treatmentLabel(row.treatment)}</strong></td>
+                <td><strong>${ctx.label(row.treatment)}</strong></td>
+                <td>${ctx.windowDays(row.treatment) ?? '—'} days</td>
                 <td>${formatInteger(row.treated_accounts)}</td>
                 <td>${formatInteger(row.control_accounts)}</td>
                 <td>${formatSignedPp(row.naive_difference)}</td>
@@ -741,10 +846,6 @@ function renderCausalValidationSection(dashboard: CausalInferenceDashboard): str
       </p>
     </section>
   `
-}
-
-function treatmentLabel(key: string): string {
-  return treatmentLabels[key] ?? key.replace(/_/g, ' ')
 }
 
 function formatSegmentType(value: string): string {
